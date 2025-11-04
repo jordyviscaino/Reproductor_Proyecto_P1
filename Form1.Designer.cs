@@ -34,7 +34,7 @@
             txtTitle = new TextBox();
             btnCerrar = new Button();
             btnMinimizar = new Button();
-            button1 = new Button();
+            btnPlay = new Button();
             button2 = new Button();
             button3 = new Button();
             button4 = new Button();
@@ -49,9 +49,11 @@
             MediaPlayer = new AxWMPLib.AxWindowsMediaPlayer();
             label1 = new Label();
             timer1 = new System.Windows.Forms.Timer(components);
+            panelCtrlBox = new Panel();
             ((System.ComponentModel.ISupportInitialize)mtrackDuracion).BeginInit();
             ((System.ComponentModel.ISupportInitialize)trackBarVolumen).BeginInit();
             ((System.ComponentModel.ISupportInitialize)MediaPlayer).BeginInit();
+            panelCtrlBox.SuspendLayout();
             SuspendLayout();
             // 
             // mtrackDuracion
@@ -62,6 +64,7 @@
             mtrackDuracion.TabIndex = 0;
             mtrackDuracion.TickStyle = TickStyle.None;
             mtrackDuracion.Scroll += mtrackDuracion_Scroll;
+            mtrackDuracion.ValueChanged += mtrackDuracion_ValueChanged;
             // 
             // txtTitle
             // 
@@ -69,7 +72,7 @@
             txtTitle.BorderStyle = BorderStyle.None;
             txtTitle.Font = new Font("Bauhaus 93", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtTitle.ForeColor = Color.FromArgb(151, 157, 172);
-            txtTitle.Location = new Point(8, 23);
+            txtTitle.Location = new Point(8, 32);
             txtTitle.Multiline = true;
             txtTitle.Name = "txtTitle";
             txtTitle.Size = new Size(374, 47);
@@ -81,11 +84,11 @@
             // 
             btnCerrar.FlatAppearance.BorderSize = 0;
             btnCerrar.FlatStyle = FlatStyle.Flat;
-            btnCerrar.Font = new Font("Castellar", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnCerrar.Font = new Font("Century", 11.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnCerrar.ForeColor = Color.LightCoral;
-            btnCerrar.Location = new Point(370, 0);
+            btnCerrar.Location = new Point(371, 0);
             btnCerrar.Name = "btnCerrar";
-            btnCerrar.Size = new Size(27, 32);
+            btnCerrar.Size = new Size(27, 25);
             btnCerrar.TabIndex = 2;
             btnCerrar.Text = "X";
             btnCerrar.UseVisualStyleBackColor = true;
@@ -96,26 +99,28 @@
             btnMinimizar.FlatAppearance.BorderSize = 0;
             btnMinimizar.FlatStyle = FlatStyle.Flat;
             btnMinimizar.Font = new Font("Castellar", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            btnMinimizar.ForeColor = Color.DarkGray;
+            btnMinimizar.ForeColor = Color.Black;
             btnMinimizar.Location = new Point(337, 0);
             btnMinimizar.Name = "btnMinimizar";
-            btnMinimizar.Size = new Size(27, 32);
+            btnMinimizar.Size = new Size(27, 25);
             btnMinimizar.TabIndex = 3;
             btnMinimizar.Text = "-";
             btnMinimizar.UseVisualStyleBackColor = true;
+            btnMinimizar.MouseClick += btnMinimizar_MouseClick;
             // 
-            // button1
+            // btnPlay
             // 
-            button1.FlatAppearance.BorderSize = 0;
-            button1.FlatStyle = FlatStyle.Flat;
-            button1.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button1.ForeColor = Color.FromArgb(4, 102, 200);
-            button1.Location = new Point(197, 101);
-            button1.Name = "button1";
-            button1.Size = new Size(40, 40);
-            button1.TabIndex = 4;
-            button1.Text = "4";
-            button1.UseVisualStyleBackColor = true;
+            btnPlay.FlatAppearance.BorderSize = 0;
+            btnPlay.FlatStyle = FlatStyle.Flat;
+            btnPlay.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnPlay.ForeColor = Color.FromArgb(4, 102, 200);
+            btnPlay.Location = new Point(197, 101);
+            btnPlay.Name = "btnPlay";
+            btnPlay.Size = new Size(40, 40);
+            btnPlay.TabIndex = 4;
+            btnPlay.Text = ";";
+            btnPlay.UseVisualStyleBackColor = true;
+            btnPlay.Click += btnPlay_Click;
             // 
             // button2
             // 
@@ -129,6 +134,7 @@
             button2.TabIndex = 5;
             button2.Text = "<";
             button2.UseVisualStyleBackColor = true;
+            button2.Click += button2_Click;
             // 
             // button3
             // 
@@ -250,10 +256,10 @@
             btnUpload.FlatAppearance.BorderSize = 0;
             btnUpload.FlatStyle = FlatStyle.Flat;
             btnUpload.Font = new Font("Wingdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            btnUpload.ForeColor = Color.FromArgb(151, 157, 172);
-            btnUpload.Location = new Point(8, 0);
+            btnUpload.ForeColor = Color.Black;
+            btnUpload.Location = new Point(0, 0);
             btnUpload.Name = "btnUpload";
-            btnUpload.Size = new Size(25, 29);
+            btnUpload.Size = new Size(33, 25);
             btnUpload.TabIndex = 14;
             btnUpload.Text = "1";
             btnUpload.UseVisualStyleBackColor = true;
@@ -271,7 +277,7 @@
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(39, 5);
+            label1.Location = new Point(32, 6);
             label1.Name = "label1";
             label1.Size = new Size(76, 15);
             label1.TabIndex = 16;
@@ -282,6 +288,20 @@
             timer1.Interval = 1;
             timer1.Tick += timer1_Tick;
             // 
+            // panelCtrlBox
+            // 
+            panelCtrlBox.BackColor = Color.FromArgb(125, 133, 151);
+            panelCtrlBox.Controls.Add(btnCerrar);
+            panelCtrlBox.Controls.Add(label1);
+            panelCtrlBox.Controls.Add(btnMinimizar);
+            panelCtrlBox.Controls.Add(btnUpload);
+            panelCtrlBox.Dock = DockStyle.Top;
+            panelCtrlBox.Location = new Point(0, 0);
+            panelCtrlBox.Name = "panelCtrlBox";
+            panelCtrlBox.Size = new Size(398, 25);
+            panelCtrlBox.TabIndex = 17;
+            panelCtrlBox.MouseMove += panelCtrlBox_MouseMove;
+            // 
             // ReproductorPr
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -289,9 +309,8 @@
             BackColor = Color.FromArgb(0, 18, 51);
             ClientSize = new Size(398, 188);
             ControlBox = false;
-            Controls.Add(label1);
+            Controls.Add(panelCtrlBox);
             Controls.Add(MediaPlayer);
-            Controls.Add(btnUpload);
             Controls.Add(button8);
             Controls.Add(button7);
             Controls.Add(trackBarVolumen);
@@ -302,17 +321,18 @@
             Controls.Add(button4);
             Controls.Add(button3);
             Controls.Add(button2);
-            Controls.Add(button1);
-            Controls.Add(btnMinimizar);
-            Controls.Add(btnCerrar);
+            Controls.Add(btnPlay);
             Controls.Add(txtTitle);
             Controls.Add(mtrackDuracion);
             ForeColor = SystemColors.Control;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             Name = "ReproductorPr";
+            StartPosition = FormStartPosition.CenterScreen;
             ((System.ComponentModel.ISupportInitialize)mtrackDuracion).EndInit();
             ((System.ComponentModel.ISupportInitialize)trackBarVolumen).EndInit();
             ((System.ComponentModel.ISupportInitialize)MediaPlayer).EndInit();
+            panelCtrlBox.ResumeLayout(false);
+            panelCtrlBox.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -323,7 +343,7 @@
         private TextBox txtTitle;
         private Button btnCerrar;
         private Button btnMinimizar;
-        private Button button1;
+        private Button btnPlay;
         private Button button2;
         private Button button3;
         private Button button4;
@@ -338,5 +358,6 @@
         private AxWMPLib.AxWindowsMediaPlayer MediaPlayer;
         private Label label1;
         private System.Windows.Forms.Timer timer1;
+        private Panel panelCtrlBox;
     }
 }

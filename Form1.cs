@@ -82,5 +82,58 @@ namespace Reproductor_Proyecto_P1
             txtDuracion.Text = MediaPlayer.currentMedia.durationString;
             txtTranscurrido.Text = MediaPlayer.Ctlcontrols.currentPositionString;
         }
+
+        private void mtrackDuracion_ValueChanged(object sender, EventArgs e)
+        {
+            if (mtrackDuracion.Value != (int)MediaPlayer.Ctlcontrols.currentPosition)
+            {
+                MediaPlayer.Ctlcontrols.currentPosition = mtrackDuracion.Value;
+            }
+        }
+
+        private void btnPlay_Click(object sender, EventArgs e)
+        {
+            if (btnPlay.Text == ";")
+            {
+                MediaPlayer.Ctlcontrols.pause();
+                btnPlay.Text = "4";
+                timer1.Stop();
+            }
+            else if (btnPlay.Text == "4")
+            {
+                MediaPlayer.Ctlcontrols.play();
+                btnPlay.Text = ";";
+                timer1.Start();
+            }
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            MediaPlayer.Ctlcontrols.stop();
+            btnPlay.Text = "4";
+            txtTranscurrido.Text = "00:00";
+            mtrackDuracion.Value = 0;
+            timer1.Stop();
+        }
+        int positiony = 0;
+        int positionx = 0;
+        private void panelCtrlBox_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+            {
+                positionx = e.X;
+                positiony = e.Y;
+            }
+            else
+            {
+                this.Left = this.Left + (e.X - positionx);
+                this.Top = this.Top + (e.Y - positiony);
+            }
+        }
+
+        private void btnMinimizar_MouseClick(object sender, MouseEventArgs e)
+        {
+            this.WindowState = FormWindowState.Minimized;
+        }
     }
 }
