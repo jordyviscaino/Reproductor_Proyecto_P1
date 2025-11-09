@@ -19,17 +19,18 @@ namespace Reproductor_Proyecto_P1
         private PointF[] particles;
         private float[] particleVelocities;
         private Color[] themeColors;
-        private string[] themeNames = { "Espectro", "Ondas", "Partículas", "Psicodélico", "Fuego", "Neón" };
+        private string[] themeNames = { "Espectro", "Ondas", "Partículas", "Psicodélico", "Neón" };
         private bool isFullscreen = false;
         private FormWindowState previousWindowState;
         private FormBorderStyle previousBorderStyle;
         private Size previousSize;
         private Point previousLocation;
+        private int ticksPerSecond;
         
         // Variables para cambio automático de temas
         private bool autoChangeThemes = true;
         private int themeChangeCounter = 0;
-        private int themeChangeInterval = 200; // 200 ticks * 50ms = 10 segundos
+        private int themeChangeInterval = 100; // Se ajustará dinámicamente según la velocidad (aproximadamente 5 segundos)
 
         public Form2()
         {
@@ -51,13 +52,26 @@ namespace Reproductor_Proyecto_P1
             particleVelocities = new float[particles.Length];
             for (int i = 0; i < particles.Length; i++)
             {
-                particles[i] = new PointF(random.Next(panelVisualization.Width), 
-                                        random.Next(panelVisualization.Height));
+                particles[i] = new PointF(random.Next(Math.Max(1, panelVisualization.Width)), 
+                                        random.Next(Math.Max(1, panelVisualization.Height)));
                 particleVelocities[i] = (float)(random.NextDouble() * 5 + 1);
             }
 
             // Inicializar colores del tema actual
             UpdateThemeColors();
+            
+            // Calcular intervalo inicial basado en el timer
+            UpdateThemeChangeInterval();
+        }
+        
+        private void UpdateThemeChangeInterval()
+        {
+            // Calcular cuántos ticks necesitamos para 10 segundos
+            int targetSeconds = 10;
+            int timerInterval = Math.Max(10, timerAnimation.Interval); // Evitar división por cero
+
+            ticksPerSecond = 100 / timerInterval;
+            themeChangeInterval = (targetSeconds * 100) / timerInterval;
         }
 
         private void UpdateThemeColors()
@@ -86,12 +100,7 @@ namespace Reproductor_Proyecto_P1
                         Color.HotPink, Color.Purple, Color.SpringGreen 
                     };
                     break;
-                case 4: // Fuego
-                    themeColors = new Color[] { 
-                        Color.DarkRed, Color.Red, Color.Orange, Color.Yellow, Color.White 
-                    };
-                    break;
-                case 5: // Neón
+                case 4: // Neón 
                     themeColors = new Color[] { 
                         Color.Lime, Color.Cyan, Color.Magenta, Color.Yellow, Color.White 
                     };
@@ -105,8 +114,10 @@ namespace Reproductor_Proyecto_P1
                          ControlStyles.UserPaint | 
                          ControlStyles.DoubleBuffer | 
                          ControlStyles.ResizeRedraw, true);
-            
+
+
             // Inicializar el checkbox
+            UpdateThemeChangeInterval();
             chkAutoChange.Checked = autoChangeThemes;
             lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
             
@@ -117,18 +128,26 @@ namespace Reproductor_Proyecto_P1
         {
             animationFrame++;
             
-            // Sistema de cambio automático de temas
+            // Sistema de cambio automático de temas 
             if (autoChangeThemes)
             {
                 themeChangeCounter++;
                 
+                // Calcular segundos restantes de manera más precisa
+               
+                int secondsRemaining = Math.Max(0, (themeChangeInterval - themeChangeCounter) / ticksPerSecond);
+                
                 // Actualizar indicador de progreso
-                int secondsRemaining = (themeChangeInterval - themeChangeCounter) / 20; // Aproximado
                 if (secondsRemaining >= 0)
                 {
-                    lblProgress.Text = $"Próximo tema: {secondsRemaining}s";
+                    lblProgress.Text = $"Próximo: {secondsRemaining}s";
+                }
+                else
+                {
+                    lblProgress.Text = "Cambiando...";
                 }
                 
+                // Cambiar tema cuando se alcance el intervalo
                 if (themeChangeCounter >= themeChangeInterval)
                 {
                     themeChangeCounter = 0;
@@ -136,23 +155,14 @@ namespace Reproductor_Proyecto_P1
                     lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
                     UpdateThemeColors();
                     
-                    // Efecto visual de transición
-                    panelVisualization.BackColor = themeColors[0];
-                    System.Threading.Tasks.Task.Delay(100).ContinueWith(t => 
-                    {
-                        if (!this.IsDisposed)
-                        {
-                            this.Invoke(new Action(() => 
-                            {
-                                panelVisualization.BackColor = Color.Black;
-                            }));
-                        }
-                    });
+                    // Efecto visual de transición más simple
+                    FlashTransition();
                 }
             }
             else
             {
                 lblProgress.Text = "Manual";
+                themeChangeCounter = 0; // Resetear contador en modo manual
             }
             
             // Actualizar barras de espectro con movimiento aleatorio
@@ -175,13 +185,75 @@ namespace Reproductor_Proyecto_P1
                     particles[i].Y < 0 || particles[i].Y > panelVisualization.Height)
                 {
                     particles[i] = new PointF(
-                        random.Next(panelVisualization.Width),
-                        random.Next(panelVisualization.Height)
+                        random.Next(Math.Max(1, panelVisualization.Width)),
+                        random.Next(Math.Max(1, panelVisualization.Height))
                     );
                 }
             }
 
             panelVisualization.Invalidate();
+        }
+
+        private void btnChangeTheme_Click(object sender, EventArgs e)
+        {
+            // Cambiar tema inmediatamente
+            currentTheme = (currentTheme + 1) % themeNames.Length;
+            UpdateThemeColors();
+            
+            // Si estaba en automático, cambiar temporalmente a manual
+            if (autoChangeThemes)
+            {
+                autoChangeThemes = false;
+                chkAutoChange.Checked = false;
+                lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
+                
+                // Programar regreso al modo automático (SIN Task.Delay problemático)
+                System.Windows.Forms.Timer tempTimer = new System.Windows.Forms.Timer();
+                tempTimer.Interval = 30000; // 30 segundos
+                tempTimer.Tick += (s, args) =>
+                {
+                    if (!this.IsDisposed)
+                    {
+                        autoChangeThemes = true;
+                        chkAutoChange.Checked = true;
+                        themeChangeCounter = 0;
+                        lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
+                    }
+                    tempTimer.Stop();
+                    tempTimer.Dispose();
+                };
+                tempTimer.Start();
+            }
+            else
+            {
+                lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
+            }
+            
+            // Efecto visual
+            FlashTransition();
+        }
+        
+        private void FlashTransition()
+        {
+            // Efecto de transición simple sin Task.Delay problemático
+            if (themeColors != null && themeColors.Length > 0)
+            {
+                panelVisualization.BackColor = themeColors[0];
+                
+                // Usar Timer para restaurar el color de fondo
+                System.Windows.Forms.Timer flashTimer = new System.Windows.Forms.Timer();
+                flashTimer.Interval = 150;
+                flashTimer.Tick += (s, args) =>
+                {
+                    if (!this.IsDisposed)
+                    {
+                        panelVisualization.BackColor = Color.Black;
+                    }
+                    flashTimer.Stop();
+                    flashTimer.Dispose();
+                };
+                flashTimer.Start();
+            }
         }
 
         private void panelVisualization_Paint(object sender, PaintEventArgs e)
@@ -204,9 +276,6 @@ namespace Reproductor_Proyecto_P1
                     DrawPsychedelic(g);
                     break;
                 case 4:
-                    DrawFire(g);
-                    break;
-                case 5:
                     DrawNeon(g);
                     break;
             }
@@ -215,57 +284,64 @@ namespace Reproductor_Proyecto_P1
         private void DrawSpectrum(Graphics g)
         {
             int barWidth = panelVisualization.Width / spectrumBars.Length;
+            
             for (int i = 0; i < spectrumBars.Length; i++)
             {
                 int barHeight = (int)spectrumBars[i];
                 Color color = themeColors[i % themeColors.Length];
                 
-                using (Brush brush = new SolidBrush(color))
+                using (Pen pen = new Pen(color, 2))
                 {
-                    g.FillRectangle(brush, 
-                        i * barWidth, 
-                        panelVisualization.Height - barHeight, 
-                        barWidth - 2, 
-                        barHeight);
+                    // Dibujar barras del espectro línea por línea desde abajo hacia arriba
+                    int x = i * barWidth;
+                    int startY = panelVisualization.Height;
+                    int endY = panelVisualization.Height - barHeight;
+                    
+                    // Dibujar múltiples líneas verticales para crear grosor
+                    for (int thickness = 0; thickness < barWidth - 2; thickness++)
+                    {
+                        g.DrawLine(pen, x + thickness, startY, x + thickness, endY);
+                    }
+                    
+                    // Agregar efecto de degradado dibujando líneas con transparencia variable
+                    for (int y = endY; y < startY; y += 2)
+                    {
+                        float alpha = (float)(startY - y) / barHeight;
+                        Color gradientColor = Color.FromArgb((int)(255 * alpha), color);
+                        using (Pen gradientPen = new Pen(gradientColor, 1))
+                        {
+                            g.DrawLine(gradientPen, x, y, x + barWidth - 2, y);
+                        }
+                    }
                 }
             }
         }
 
         private void DrawWaves(Graphics g)
         {
-            using (Pen pen = new Pen(themeColors[0], 3))
+            // Ecuaciones harmónicas manuales usando seno y coseno
+            for (int wave = 0; wave < themeColors.Length; wave++)
             {
-                List<PointF> wavePoints = new List<PointF>();
-                for (int x = 0; x < panelVisualization.Width; x += 5)
+                using (Pen pen = new Pen(themeColors[wave], 2 + wave))
                 {
-                    float y = panelVisualization.Height / 2 + 
-                             (float)(Math.Sin((x + animationFrame * 5) * 0.02) * 50 +
-                             Math.Sin((x + animationFrame * 3) * 0.01) * 30);
-                    wavePoints.Add(new PointF(x, y));
-                }
-                
-                if (wavePoints.Count > 1)
-                {
-                    g.DrawCurve(pen, wavePoints.ToArray());
-                }
-            }
-
-            // Múltiples ondas con diferentes colores
-            for (int wave = 1; wave < themeColors.Length; wave++)
-            {
-                using (Pen pen = new Pen(themeColors[wave], 2))
-                {
-                    List<PointF> wavePoints = new List<PointF>();
-                    for (int x = 0; x < panelVisualization.Width; x += 5)
-                    {
-                        float y = panelVisualization.Height / 2 + 
-                                 (float)(Math.Sin((x + animationFrame * (3 + wave)) * 0.015) * (30 + wave * 10));
-                        wavePoints.Add(new PointF(x, y));
-                    }
+                    // Parámetros de la onda
+                    float amplitude = 40 + wave * 15;  // Amplitud
+                    float frequency = 0.01f + wave * 0.005f;  // Frecuencia
+                    float phase = animationFrame * (0.05f + wave * 0.02f);  // Fase
+                    float verticalOffset = panelVisualization.Height / 2 + wave * 20;
                     
-                    if (wavePoints.Count > 1)
+                    // Dibujar onda punto por punto conectando líneas
+                    for (int x = 0; x < panelVisualization.Width - 1; x++)
                     {
-                        g.DrawCurve(pen, wavePoints.ToArray());
+                        // Ecuación harmónica: y = A * sin(fx + φ) + offset
+                        float y1 = verticalOffset + amplitude * (float)Math.Sin(frequency * x + phase);
+                        float y2 = verticalOffset + amplitude * (float)Math.Sin(frequency * (x + 1) + phase);
+						
+						// Agregar componente adicional para mayor complejidad
+						y1 += (amplitude * 0.3f) * (float)Math.Cos(frequency * x * 2 + phase * 1.5f);
+                        y2 += (amplitude * 0.3f) * (float)Math.Cos(frequency * (x + 1) * 2 + phase * 1.5f);
+						
+                        g.DrawLine(pen, x, y1, x + 1, y2);
                     }
                 }
             }
@@ -273,155 +349,178 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawParticles(Graphics g)
         {
+            // Ecuaciones paramétricas para partículas en movimiento
             for (int i = 0; i < particles.Length; i++)
             {
-                Color color = Color.FromArgb(
-                    200,
-                    themeColors[i % themeColors.Length].R,
-                    themeColors[i % themeColors.Length].G,
-                    themeColors[i % themeColors.Length].B
-                );
+                Color color = Color.FromArgb(200, themeColors[i % themeColors.Length]);
                 
-                using (Brush brush = new SolidBrush(color))
+                // Ecuaciones paramétricas para movimiento circular/espiral
+                float t = animationFrame * 0.1f + i;
+                float radius = 3 + 2 * (float)Math.Sin(t);
+                
+                // Calcular posición con ecuaciones paramétricas
+                // x = r*cos(t), y = r*sin(t) para movimiento circular
+                float centerX = particles[i].X;
+                float centerY = particles[i].Y;
+                
+                using (Pen pen = new Pen(color, 2))
                 {
-                    float size = 3 + (float)Math.Sin(animationFrame * 0.1 + i) * 2;
-                    g.FillEllipse(brush, 
-                        particles[i].X - size/2, 
-                        particles[i].Y - size/2, 
-                        size, size);
+                    // Dibujar partícula como estrella usando líneas radiales
+                    int rays = 8;
+                    for (int ray = 0; ray < rays; ray++)
+                    {
+                        float angle = (2 * (float)Math.PI * ray) / rays + t;
+                        float x1 = centerX + radius * 0.3f * (float)Math.Cos(angle);
+                        float y1 = centerY + radius * 0.3f * (float)Math.Sin(angle);
+                        float x2 = centerX + radius * (float)Math.Cos(angle);
+                        float y2 = centerY + radius * (float)Math.Sin(angle);
+                        
+                        g.DrawLine(pen, x1, y1, x2, y2);
+                    }
+                    
+                    // Dibujar círculo usando líneas (aproximación poligonal)
+                    int segments = 12;
+                    for (int seg = 0; seg < segments; seg++)
+                    {
+                        float angle1 = (2 * (float)Math.PI * seg) / segments;
+                        float angle2 = (2 * (float)Math.PI * (seg + 1)) / segments;
+                        
+                        float x1 = centerX + radius * (float)Math.Cos(angle1);
+                        float y1 = centerY + radius * (float)Math.Sin(angle1);
+                        float x2 = centerX + radius * (float)Math.Cos(angle2);
+                        float y2 = centerY + radius * (float)Math.Sin(angle2);
+                        
+                        g.DrawLine(pen, x1, y1, x2, y2);
+                    }
                 }
             }
         }
 
         private void DrawPsychedelic(Graphics g)
         {
-            // Círculos concéntricos rotativos
+            // Espirales matemáticas usando ecuaciones polares
             PointF center = new PointF(panelVisualization.Width / 2, panelVisualization.Height / 2);
             
-            for (int ring = 0; ring < 8; ring++)
+            // Dibujar múltiples espirales con diferentes parámetros
+            for (int spiral = 0; spiral < themeColors.Length; spiral++)
             {
-                float radius = 50 + ring * 30;
-                Color color = Color.FromArgb(100, themeColors[ring % themeColors.Length]);
-                
-                float angle = (animationFrame * (2 + ring)) * 0.05f;
-                float x = center.X + (float)(Math.Cos(angle) * radius);
-                float y = center.Y + (float)(Math.Sin(angle) * radius);
-                
-                using (Brush brush = new SolidBrush(color))
+                using (Pen pen = new Pen(themeColors[spiral], 2))
                 {
-                    g.FillEllipse(brush, x - 20, y - 20, 40, 40);
+                    // Parámetros de la espiral
+                    float a = 2 + spiral;  // Factor de expansión
+                    float b = 0.5f + spiral * 0.2f;  // Factor de separación
+                    float rotationSpeed = animationFrame * (0.02f + spiral * 0.01f);
+                    
+                    // Dibujar espiral usando ecuaciones polares: r = a + b*θ
+                    for (float theta = 0; theta < 6 * Math.PI; theta += 0.1f)
+                    {
+                        // Ecuación de espiral de Arquímedes: r = a + b*θ
+                        float r1 = a + b * theta;
+                        float r2 = a + b * (theta + 0.1f);
+                        
+                        // Convertir coordenadas polares a cartesianas
+                        float x1 = center.X + r1 * (float)Math.Cos(theta + rotationSpeed);
+                        float y1 = center.Y + r1 * (float)Math.Sin(theta + rotationSpeed);
+                        float x2 = center.X + r2 * (float)Math.Cos(theta + 0.1f + rotationSpeed);
+                        float y2 = center.Y + r2 * (float)Math.Sin(theta + 0.1f + rotationSpeed);
+                        
+                        // Verificar que los puntos estén dentro de la pantalla
+                        if (x1 >= 0 && x1 < panelVisualization.Width && y1 >= 0 && y1 < panelVisualization.Height &&
+                            x2 >= 0 && x2 < panelVisualization.Width && y2 >= 0 && y2 < panelVisualization.Height)
+                        {
+                            g.DrawLine(pen, x1, y1, x2, y2);
+                        }
+                    }
                 }
             }
-
-            // Líneas rotativas
-            using (Pen pen = new Pen(themeColors[animationFrame % themeColors.Length], 2))
+            
+            // Agregar líneas radiales rotativas
+            for (int i = 0; i < 12; i++)
             {
-                for (int i = 0; i < 12; i++)
+                using (Pen pen = new Pen(themeColors[i % themeColors.Length], 1))
                 {
-                    float angle = (animationFrame + i * 30) * 0.03f;
-                    float x1 = center.X + (float)(Math.Cos(angle) * 100);
-                    float y1 = center.Y + (float)(Math.Sin(angle) * 100);
-                    float x2 = center.X + (float)(Math.Cos(angle) * 200);
-                    float y2 = center.Y + (float)(Math.Sin(angle) * 200);
+                    float angle = (2 * (float)Math.PI * i) / 12 + animationFrame * 0.03f;
+                    float x1 = center.X + 50 * (float)Math.Cos(angle);
+                    float y1 = center.Y + 50 * (float)Math.Sin(angle);
+                    float x2 = center.X + 150 * (float)Math.Cos(angle);
+                    float y2 = center.Y + 150 * (float)Math.Sin(angle);
                     
                     g.DrawLine(pen, x1, y1, x2, y2);
                 }
             }
         }
 
-        private void DrawFire(Graphics g)
-        {
-            // Simulación de llamas con partículas que suben
-            for (int i = 0; i < 50; i++)
-            {
-                float x = (float)(panelVisualization.Width * 0.2 + random.NextDouble() * panelVisualization.Width * 0.6);
-                float y = panelVisualization.Height - (float)(random.NextDouble() * 200 + Math.Sin(animationFrame * 0.1 + i) * 50);
-                
-                int colorIndex = Math.Min(themeColors.Length - 1, (int)(random.NextDouble() * themeColors.Length));
-                Color color = Color.FromArgb(
-                    (int)(150 + random.NextDouble() * 105),
-                    themeColors[colorIndex]);
-                
-                using (Brush brush = new SolidBrush(color))
-                {
-                    float size = (float)(5 + random.NextDouble() * 15);
-                    g.FillEllipse(brush, x - size/2, y - size/2, size, size);
-                }
-            }
-        }
-
         private void DrawNeon(Graphics g)
         {
-            // Efectos de neón con líneas brillantes
+            // Efectos de neón usando líneas con resplandor matemático
             for (int i = 0; i < themeColors.Length; i++)
             {
-                using (Pen pen = new Pen(themeColors[i], 4))
+                Color neonColor = themeColors[i];
+                
+                // Calcular intensidad parpadeante usando función seno
+                float intensity = 0.5f + 0.5f * (float)Math.Sin(animationFrame * 0.1f + i);
+                Color glowColor = Color.FromArgb((int)(255 * intensity), neonColor);
+                
+                // Dibujar líneas horizontales de neón
+                int y = 80 + i * 70;
+                using (Pen pen = new Pen(glowColor, 3))
                 {
-                    // Líneas horizontales parpadeantes
-                    float alpha = (float)(0.5 + 0.5 * Math.Sin(animationFrame * 0.1 + i));
-                    Color glowColor = Color.FromArgb((int)(255 * alpha), themeColors[i]);
-                    pen.Color = glowColor;
-                    
-                    int y = 100 + i * 80;
-                    g.DrawLine(pen, 50, y, panelVisualization.Width - 50, y);
-                    
-                    // Efecto de resplandor
-                    using (Pen glowPen = new Pen(Color.FromArgb(50, themeColors[i]), 8))
+                    g.DrawLine(pen, 100, y, panelVisualization.Width - 100, y);
+                }
+                
+                // Efecto de resplandor dibujando líneas paralelas con transparencia
+                for (int glow = 1; glow <= 5; glow++)
+                {
+                    Color resplandor = Color.FromArgb((int)(50 * intensity / glow), neonColor);
+                    using (Pen glowPen = new Pen(resplandor, 1))
                     {
-                        g.DrawLine(glowPen, 50, y, panelVisualization.Width - 50, y);
+                        g.DrawLine(glowPen, 100, y - glow, panelVisualization.Width - 100, y - glow);
+                        g.DrawLine(glowPen, 100, y + glow, panelVisualization.Width - 100, y + glow);
                     }
                 }
             }
-
-            // Círculos de neón pulsantes
+            
+            // Círculos de neón pulsantes dibujados con líneas
             PointF center = new PointF(panelVisualization.Width / 2, panelVisualization.Height / 2);
-            for (int ring = 0; ring < 5; ring++)
+            for (int ring = 0; ring < 4; ring++)
             {
-                float radius = 50 + ring * 40 + (float)(Math.Sin(animationFrame * 0.08) * 20);
-                Color neonColor = themeColors[ring % themeColors.Length];
+                float baseRadius = 60 + ring * 35;
+                float pulsation = 10 * (float)Math.Sin(animationFrame * 0.08f + ring);
+                float radius = baseRadius + pulsation;
                 
-                using (Pen pen = new Pen(neonColor, 3))
+                Color neonColor = themeColors[ring % themeColors.Length];
+                using (Pen pen = new Pen(neonColor, 2))
                 {
-                    g.DrawEllipse(pen, 
-                        center.X - radius, center.Y - radius, 
-                        radius * 2, radius * 2);
-                }
-            }
-        }
-
-        private void btnChangeTheme_Click(object sender, EventArgs e)
-        {
-            // Si está en modo automático, cambiar a manual temporalmente
-            if (autoChangeThemes)
-            {
-                autoChangeThemes = false;
-                themeChangeCounter = 0;
-            }
-            
-            currentTheme = (currentTheme + 1) % themeNames.Length;
-            lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
-            UpdateThemeColors();
-            
-            // Reactivar modo automático después de 30 segundos de inactividad
-            System.Threading.Tasks.Task.Delay(30000).ContinueWith(t => 
-            {
-                if (!this.IsDisposed)
-                {
-                    this.Invoke(new Action(() => 
+                    // Dibujar círculo usando líneas (aproximación poligonal de alta resolución)
+                    int segments = 36;  // Más segmentos para círculo más suave
+                    for (int seg = 0; seg < segments; seg++)
                     {
-                        autoChangeThemes = true;
-                        themeChangeCounter = 0;
-                    }));
+                        float angle1 = (2 * (float)Math.PI * seg) / segments;
+                        float angle2 = (2 * (float)Math.PI * (seg + 1)) / segments;
+                        
+                        float x1 = center.X + radius * (float)Math.Cos(angle1);
+                        float y1 = center.Y + radius * (float)Math.Sin(angle1);
+                        float x2 = center.X + radius * (float)Math.Cos(angle2);
+                        float y2 = center.Y + radius * (float)Math.Sin(angle2);
+                        
+                        g.DrawLine(pen, x1, y1, x2, y2);
+                    }
                 }
-            });
+            }
         }
 
         private void trackBarSpeed_ValueChanged(object sender, EventArgs e)
         {
             // Cambiar la velocidad de la animación basado en el valor del trackbar
             // Valor más alto = animación más rápida (menor intervalo)
-            int newInterval = 110 - trackBarSpeed.Value; // 10-100ms
+            int newInterval = Math.Max(10, 110 - trackBarSpeed.Value); // Asegurar mínimo de 10ms
             timerAnimation.Interval = newInterval;
+            
+            // Recalcular el intervalo de cambio de tema para mantener 10 segundos
+            UpdateThemeChangeInterval();
+            
+            // Resetear contador para evitar cambios inmediatos no deseados
+            themeChangeCounter = 0;
         }
 
         private void btnFullscreen_Click(object sender, EventArgs e)
@@ -491,11 +590,18 @@ namespace Reproductor_Proyecto_P1
         private void chkAutoChange_CheckedChanged(object sender, EventArgs e)
         {
             autoChangeThemes = chkAutoChange.Checked;
-            themeChangeCounter = 0; // Reiniciar contador
+            themeChangeCounter = 0; // Reiniciar contador siempre
             
             // Actualizar la etiqueta del tema
             string mode = autoChangeThemes ? " (Auto)" : " (Manual)";
             lblTheme.Text = "Tema: " + themeNames[currentTheme] + mode;
+            
+            // Actualizar el indicador de progreso inmediatamente
+            if (!autoChangeThemes)
+            {
+                lblProgress.Text = "Manual";
+            }
         }
     }
 }
+
