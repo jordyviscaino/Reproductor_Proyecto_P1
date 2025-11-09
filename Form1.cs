@@ -279,9 +279,49 @@ namespace Reproductor_Proyecto_P1
 
         }
 
-        private void btnVisualization_Click(object sender, EventArgs e)
+
+
+        private void button1_Click(object sender, EventArgs e)
         {
             OpenVisualization();
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog Dialog = new OpenFileDialog();
+            Dialog.Multiselect = true;
+            Dialog.Filter = "Archivos de audio|*.mp3;*.wav;*.wma;*.aac;*.flac;*.ogg|Todos los archivos|*.*";
+            Dialog.Title = "Selecciona un archivo de audio";
+            if (Dialog.ShowDialog() == DialogResult.OK)
+            {
+                btnAnterior.Enabled = false;
+                Rutas = Dialog.FileNames;
+                Titulos = Dialog.SafeFileNames;
+                Reproduciendo = 0;
+                if (Rutas.Length == 1)
+                {
+                    btnAnterior.Visible = false;
+                    btnSiguiente.Visible = false;
+                }
+                else
+                {
+                    btnAnterior.Visible = true;
+                    btnSiguiente.Visible = true;
+                    btnSiguiente.Enabled = true;
+
+                }
+                txtTitle.Clear();
+                txtTitle.Text = Titulos[Reproduciendo];
+                uploadAudio(Rutas[Reproduciendo]);
+                button2.Enabled = true;
+                btnPlay.Enabled = true;
+                btnLoop.Enabled = true;
+                btnAtrasar.Enabled = true;
+                btnAdelantar.Enabled = true;
+                mtrackDuracion.Enabled = true;
+                btnPlay.Text = ";";
+
+            }
         }
     }
 }

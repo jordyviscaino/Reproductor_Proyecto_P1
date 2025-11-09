@@ -296,9 +296,10 @@
             label1.ForeColor = SystemColors.ButtonHighlight;
             label1.Location = new Point(32, 6);
             label1.Name = "label1";
-            label1.Size = new Size(76, 15);
+            label1.Size = new Size(80, 15);
             label1.TabIndex = 16;
             label1.Text = "Subir archivo";
+            label1.Click += label1_Click;
             // 
             // timer1
             // 
@@ -321,18 +322,16 @@
             // 
             // btnVisualization
             // 
-            btnVisualization.FlatAppearance.BorderSize = 0;
+            btnVisualization.BackColor = Color.FromArgb(184, 98, 27);
             btnVisualization.FlatStyle = FlatStyle.Flat;
-            btnVisualization.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            btnVisualization.ForeColor = Color.FromArgb(4, 102, 200);
-            btnVisualization.Location = new Point(9, 196);
-            btnVisualization.Margin = new Padding(3, 4, 3, 4);
+            btnVisualization.ForeColor = Color.Transparent;
+            btnVisualization.Location = new Point(8, 152);
             btnVisualization.Name = "btnVisualization";
-            btnVisualization.Size = new Size(120, 39);
-            btnVisualization.TabIndex = 18;
-            btnVisualization.Text = "Visualización";
-            btnVisualization.UseVisualStyleBackColor = true;
-            btnVisualization.Click += btnVisualization_Click;
+            btnVisualization.Size = new Size(88, 24);
+            btnVisualization.TabIndex = 19;
+            btnVisualization.Text = "Visualizador";
+            btnVisualization.UseVisualStyleBackColor = false;
+            btnVisualization.Click += button1_Click;
             // 
             // ReproductorPr
             // 
@@ -357,6 +356,7 @@
             Controls.Add(btnPlay);
             Controls.Add(txtTitle);
             Controls.Add(mtrackDuracion);
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
             ForeColor = SystemColors.Control;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             Name = "ReproductorPr";
@@ -393,5 +393,6 @@
         private System.Windows.Forms.Timer timer1;
         private Panel panelCtrlBox;
         private Button btnVisualization;
+    
     }
 }
