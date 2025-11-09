@@ -29,10 +29,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="lioncs.ColorSlider" Version="1.0.0" />
     <PackageReference Include="MACTrackBarLib.dll" Version="1.0.2" />
     <PackageReference Include="MACTrackBarNet6x64" Version="6.1.22" />
     <PackageReference Include="MACTrackBarNet6x86" Version="6.1.22" />
-    <PackageReference Include="Syncfusion.Maui.Sliders" Version="31.2.4" />
+    <PackageReference Include="MindFusion.Pack.WinForms" Version="2025.1.0" />
+    <PackageReference Include="Syncfusion.Licensing" Version="31.2.5" />
+    <PackageReference Include="Syncfusion.Maui.Core" Version="31.2.5" />
+    <PackageReference Include="Syncfusion.Maui.Sliders" Version="31.2.5" />
+    <PackageReference Include="Vanara.Windows.Forms" Version="4.2.1" />
   </ItemGroup>
 
 </Project>

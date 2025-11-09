@@ -36,15 +36,15 @@
             btnMinimizar = new Button();
             btnPlay = new Button();
             button2 = new Button();
-            button3 = new Button();
-            button4 = new Button();
-            button5 = new Button();
-            button6 = new Button();
+            btnAdelantar = new Button();
+            btnAtrasar = new Button();
+            btnSiguiente = new Button();
+            btnAnterior = new Button();
             txtTranscurrido = new TextBox();
             txtDuracion = new TextBox();
             trackBarVolumen = new TrackBar();
             button8 = new Button();
-            button7 = new Button();
+            btnLoop = new Button();
             btnUpload = new Button();
             MediaPlayer = new AxWMPLib.AxWindowsMediaPlayer();
             label1 = new Label();
@@ -58,6 +58,7 @@
             // 
             // mtrackDuracion
             // 
+            mtrackDuracion.Enabled = false;
             mtrackDuracion.Location = new Point(8, 75);
             mtrackDuracion.Name = "mtrackDuracion";
             mtrackDuracion.Size = new Size(374, 45);
@@ -68,10 +69,10 @@
             // 
             // txtTitle
             // 
-            txtTitle.BackColor = Color.FromArgb(0, 18, 51);
+            txtTitle.BackColor = Color.FromArgb(227, 204, 174);
             txtTitle.BorderStyle = BorderStyle.None;
             txtTitle.Font = new Font("Bauhaus 93", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            txtTitle.ForeColor = Color.FromArgb(151, 157, 172);
+            txtTitle.ForeColor = Color.FromArgb(38, 42, 86);
             txtTitle.Location = new Point(8, 32);
             txtTitle.Multiline = true;
             txtTitle.Name = "txtTitle";
@@ -99,7 +100,7 @@
             btnMinimizar.FlatAppearance.BorderSize = 0;
             btnMinimizar.FlatStyle = FlatStyle.Flat;
             btnMinimizar.Font = new Font("Castellar", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            btnMinimizar.ForeColor = Color.Black;
+            btnMinimizar.ForeColor = Color.Transparent;
             btnMinimizar.Location = new Point(337, 0);
             btnMinimizar.Name = "btnMinimizar";
             btnMinimizar.Size = new Size(27, 25);
@@ -110,10 +111,11 @@
             // 
             // btnPlay
             // 
+            btnPlay.Enabled = false;
             btnPlay.FlatAppearance.BorderSize = 0;
             btnPlay.FlatStyle = FlatStyle.Flat;
             btnPlay.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            btnPlay.ForeColor = Color.FromArgb(4, 102, 200);
+            btnPlay.ForeColor = Color.FromArgb(184, 98, 27);
             btnPlay.Location = new Point(197, 101);
             btnPlay.Name = "btnPlay";
             btnPlay.Size = new Size(40, 40);
@@ -124,10 +126,11 @@
             // 
             // button2
             // 
+            button2.Enabled = false;
             button2.FlatAppearance.BorderSize = 0;
             button2.FlatStyle = FlatStyle.Flat;
             button2.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button2.ForeColor = Color.FromArgb(4, 102, 200);
+            button2.ForeColor = Color.FromArgb(184, 98, 27);
             button2.Location = new Point(160, 101);
             button2.Name = "button2";
             button2.Size = new Size(40, 40);
@@ -136,63 +139,72 @@
             button2.UseVisualStyleBackColor = true;
             button2.Click += button2_Click;
             // 
-            // button3
+            // btnAdelantar
             // 
-            button3.FlatAppearance.BorderSize = 0;
-            button3.FlatStyle = FlatStyle.Flat;
-            button3.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button3.ForeColor = Color.FromArgb(3, 83, 164);
-            button3.Location = new Point(243, 101);
-            button3.Name = "button3";
-            button3.Size = new Size(40, 40);
-            button3.TabIndex = 5;
-            button3.Text = "8";
-            button3.UseVisualStyleBackColor = true;
+            btnAdelantar.Enabled = false;
+            btnAdelantar.FlatAppearance.BorderSize = 0;
+            btnAdelantar.FlatStyle = FlatStyle.Flat;
+            btnAdelantar.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnAdelantar.ForeColor = Color.FromArgb(184, 98, 27);
+            btnAdelantar.Location = new Point(243, 101);
+            btnAdelantar.Name = "btnAdelantar";
+            btnAdelantar.Size = new Size(40, 40);
+            btnAdelantar.TabIndex = 5;
+            btnAdelantar.Text = "8";
+            btnAdelantar.UseVisualStyleBackColor = true;
+            btnAdelantar.Click += btnAdelantar_Click;
             // 
-            // button4
+            // btnAtrasar
             // 
-            button4.FlatAppearance.BorderSize = 0;
-            button4.FlatStyle = FlatStyle.Flat;
-            button4.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button4.ForeColor = Color.FromArgb(3, 83, 164);
-            button4.Location = new Point(114, 101);
-            button4.Name = "button4";
-            button4.Size = new Size(40, 40);
-            button4.TabIndex = 7;
-            button4.Text = "7";
-            button4.UseVisualStyleBackColor = true;
+            btnAtrasar.Enabled = false;
+            btnAtrasar.FlatAppearance.BorderSize = 0;
+            btnAtrasar.FlatStyle = FlatStyle.Flat;
+            btnAtrasar.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnAtrasar.ForeColor = Color.FromArgb(184, 98, 27);
+            btnAtrasar.Location = new Point(114, 101);
+            btnAtrasar.Name = "btnAtrasar";
+            btnAtrasar.Size = new Size(40, 40);
+            btnAtrasar.TabIndex = 7;
+            btnAtrasar.Text = "7";
+            btnAtrasar.UseVisualStyleBackColor = true;
+            btnAtrasar.Click += btnAtrasar_Click;
             // 
-            // button5
+            // btnSiguiente
             // 
-            button5.FlatAppearance.BorderSize = 0;
-            button5.FlatStyle = FlatStyle.Flat;
-            button5.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button5.ForeColor = Color.FromArgb(3, 83, 164);
-            button5.Location = new Point(289, 101);
-            button5.Name = "button5";
-            button5.Size = new Size(40, 40);
-            button5.TabIndex = 8;
-            button5.Text = ":";
-            button5.UseVisualStyleBackColor = true;
+            btnSiguiente.Enabled = false;
+            btnSiguiente.FlatAppearance.BorderSize = 0;
+            btnSiguiente.FlatStyle = FlatStyle.Flat;
+            btnSiguiente.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnSiguiente.ForeColor = Color.FromArgb(184, 98, 27);
+            btnSiguiente.Location = new Point(289, 101);
+            btnSiguiente.Name = "btnSiguiente";
+            btnSiguiente.Size = new Size(40, 40);
+            btnSiguiente.TabIndex = 8;
+            btnSiguiente.Text = ":";
+            btnSiguiente.UseVisualStyleBackColor = true;
+            btnSiguiente.Click += btnSiguiente_Click;
             // 
-            // button6
+            // btnAnterior
             // 
-            button6.FlatAppearance.BorderSize = 0;
-            button6.FlatStyle = FlatStyle.Flat;
-            button6.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button6.ForeColor = Color.FromArgb(3, 83, 164);
-            button6.Location = new Point(68, 101);
-            button6.Name = "button6";
-            button6.Size = new Size(40, 40);
-            button6.TabIndex = 5;
-            button6.Text = "9";
-            button6.UseVisualStyleBackColor = true;
+            btnAnterior.Enabled = false;
+            btnAnterior.FlatAppearance.BorderSize = 0;
+            btnAnterior.FlatStyle = FlatStyle.Flat;
+            btnAnterior.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnAnterior.ForeColor = Color.FromArgb(184, 98, 27);
+            btnAnterior.Location = new Point(68, 101);
+            btnAnterior.Name = "btnAnterior";
+            btnAnterior.Size = new Size(40, 40);
+            btnAnterior.TabIndex = 5;
+            btnAnterior.Text = "9";
+            btnAnterior.UseVisualStyleBackColor = true;
+            btnAnterior.Visible = false;
+            btnAnterior.Click += btnAnterior_Click;
             // 
             // txtTranscurrido
             // 
-            txtTranscurrido.BackColor = Color.FromArgb(0, 18, 51);
+            txtTranscurrido.BackColor = Color.FromArgb(227, 204, 174);
             txtTranscurrido.BorderStyle = BorderStyle.None;
-            txtTranscurrido.ForeColor = SystemColors.MenuBar;
+            txtTranscurrido.ForeColor = Color.FromArgb(38, 42, 86);
             txtTranscurrido.Location = new Point(12, 91);
             txtTranscurrido.Name = "txtTranscurrido";
             txtTranscurrido.Size = new Size(45, 16);
@@ -202,9 +214,9 @@
             // 
             // txtDuracion
             // 
-            txtDuracion.BackColor = Color.FromArgb(0, 18, 51);
+            txtDuracion.BackColor = Color.FromArgb(227, 204, 174);
             txtDuracion.BorderStyle = BorderStyle.None;
-            txtDuracion.ForeColor = SystemColors.Window;
+            txtDuracion.ForeColor = Color.FromArgb(38, 42, 86);
             txtDuracion.Location = new Point(337, 91);
             txtDuracion.Name = "txtDuracion";
             txtDuracion.Size = new Size(45, 16);
@@ -230,7 +242,7 @@
             button8.FlatAppearance.BorderSize = 0;
             button8.FlatStyle = FlatStyle.Flat;
             button8.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button8.ForeColor = Color.FromArgb(4, 102, 200);
+            button8.ForeColor = Color.FromArgb(184, 98, 27);
             button8.Location = new Point(262, 147);
             button8.Name = "button8";
             button8.Size = new Size(25, 29);
@@ -238,25 +250,28 @@
             button8.Text = "X";
             button8.UseVisualStyleBackColor = true;
             // 
-            // button7
+            // btnLoop
             // 
-            button7.FlatAppearance.BorderSize = 0;
-            button7.FlatStyle = FlatStyle.Flat;
-            button7.Font = new Font("Wingdings 3", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            button7.ForeColor = Color.FromArgb(4, 102, 200);
-            button7.Location = new Point(231, 147);
-            button7.Name = "button7";
-            button7.Size = new Size(25, 29);
-            button7.TabIndex = 12;
-            button7.Text = "Q";
-            button7.UseVisualStyleBackColor = true;
+            btnLoop.BackColor = Color.Transparent;
+            btnLoop.FlatAppearance.BorderSize = 0;
+            btnLoop.FlatAppearance.MouseOverBackColor = Color.FromArgb(184, 98, 27);
+            btnLoop.FlatStyle = FlatStyle.Flat;
+            btnLoop.Font = new Font("Wingdings 3", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
+            btnLoop.ForeColor = Color.FromArgb(38, 42, 86);
+            btnLoop.Location = new Point(231, 147);
+            btnLoop.Name = "btnLoop";
+            btnLoop.Size = new Size(25, 29);
+            btnLoop.TabIndex = 12;
+            btnLoop.Text = "Q";
+            btnLoop.UseVisualStyleBackColor = false;
+            btnLoop.Click += btnLoop_Click;
             // 
             // btnUpload
             // 
             btnUpload.FlatAppearance.BorderSize = 0;
             btnUpload.FlatStyle = FlatStyle.Flat;
             btnUpload.Font = new Font("Wingdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            btnUpload.ForeColor = Color.Black;
+            btnUpload.ForeColor = Color.Transparent;
             btnUpload.Location = new Point(0, 0);
             btnUpload.Name = "btnUpload";
             btnUpload.Size = new Size(33, 25);
@@ -277,6 +292,7 @@
             // label1
             // 
             label1.AutoSize = true;
+            label1.ForeColor = SystemColors.ButtonHighlight;
             label1.Location = new Point(32, 6);
             label1.Name = "label1";
             label1.Size = new Size(76, 15);
@@ -290,7 +306,7 @@
             // 
             // panelCtrlBox
             // 
-            panelCtrlBox.BackColor = Color.FromArgb(125, 133, 151);
+            panelCtrlBox.BackColor = Color.FromArgb(38, 42, 86);
             panelCtrlBox.Controls.Add(btnCerrar);
             panelCtrlBox.Controls.Add(label1);
             panelCtrlBox.Controls.Add(btnMinimizar);
@@ -306,20 +322,20 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(0, 18, 51);
+            BackColor = Color.FromArgb(227, 204, 174);
             ClientSize = new Size(398, 188);
             ControlBox = false;
             Controls.Add(panelCtrlBox);
             Controls.Add(MediaPlayer);
             Controls.Add(button8);
-            Controls.Add(button7);
+            Controls.Add(btnLoop);
             Controls.Add(trackBarVolumen);
             Controls.Add(txtDuracion);
             Controls.Add(txtTranscurrido);
-            Controls.Add(button6);
-            Controls.Add(button5);
-            Controls.Add(button4);
-            Controls.Add(button3);
+            Controls.Add(btnAnterior);
+            Controls.Add(btnSiguiente);
+            Controls.Add(btnAtrasar);
+            Controls.Add(btnAdelantar);
             Controls.Add(button2);
             Controls.Add(btnPlay);
             Controls.Add(txtTitle);
@@ -345,15 +361,15 @@
         private Button btnMinimizar;
         private Button btnPlay;
         private Button button2;
-        private Button button3;
-        private Button button4;
-        private Button button5;
-        private Button button6;
+        private Button btnAdelantar;
+        private Button btnAtrasar;
+        private Button btnSiguiente;
+        private Button btnAnterior;
         private TextBox txtTranscurrido;
         private TextBox txtDuracion;
         private TrackBar trackBarVolumen;
         private Button button8;
-        private Button button7;
+        private Button btnLoop;
         private Button btnUpload;
         private AxWMPLib.AxWindowsMediaPlayer MediaPlayer;
         private Label label1;

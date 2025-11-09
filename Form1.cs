@@ -20,9 +20,33 @@ namespace Reproductor_Proyecto_P1
             Dialog.Title = "Selecciona un archivo de audio";
             if (Dialog.ShowDialog() == DialogResult.OK)
             {
-                string Titulo = Dialog.SafeFileName;
-                txtTitle.Text = Titulo;
-                uploadAudio(Dialog.FileName);
+                btnAnterior.Enabled = false;
+                Rutas = Dialog.FileNames;
+                Titulos = Dialog.SafeFileNames;
+                Reproduciendo = 0;
+                if (Rutas.Length == 1)
+                {
+                    btnAnterior.Visible = false;
+                    btnSiguiente.Visible = false;
+                }
+                else
+                {
+                    btnAnterior.Visible = true;
+                    btnSiguiente.Visible = true;
+                    btnSiguiente.Enabled = true;
+
+                }
+                txtTitle.Clear();
+                txtTitle.Text = Titulos[Reproduciendo];
+                uploadAudio(Rutas[Reproduciendo]);
+                button2.Enabled = true;
+                btnPlay.Enabled = true;
+                btnLoop.Enabled = true;
+                btnAtrasar.Enabled = true;
+                btnAdelantar.Enabled = true;
+                mtrackDuracion.Enabled = true;
+                btnPlay.Text = ";";
+
             }
         }
 
@@ -82,12 +106,52 @@ namespace Reproductor_Proyecto_P1
             txtDuracion.Text = MediaPlayer.currentMedia.durationString;
             txtTranscurrido.Text = MediaPlayer.Ctlcontrols.currentPositionString;
         }
-
+        int Reproduciendo;
+        string[] Rutas;
+        string[] Titulos;
         private void mtrackDuracion_ValueChanged(object sender, EventArgs e)
         {
+            bool finished = false;
+            if (txtDuracion.Text == txtTranscurrido.Text)
+            {
+                finished = true;
+            }
             if (mtrackDuracion.Value != (int)MediaPlayer.Ctlcontrols.currentPosition)
             {
                 MediaPlayer.Ctlcontrols.currentPosition = mtrackDuracion.Value;
+            }
+            if (finished == true && btnLoop.BackColor == Color.Transparent && Rutas.Length == 1)
+            {
+                btnPlay.Text = "4";
+                timer1.Stop();
+            }
+            else
+            {
+                if (finished == true && Rutas.Length > 1 && btnLoop.BackColor == Color.Transparent)
+                {
+                    Reproduciendo += 1;
+                    if (Reproduciendo == Rutas.Length)
+                    {
+                        Reproduciendo = 0;
+                        uploadAudio(Rutas[Reproduciendo]);
+                        txtTitle.Text = Titulos[Reproduciendo];
+                        btnAnterior.Enabled = false;
+                        btnSiguiente.Enabled = true;
+                    }
+                    else
+                    {
+                        if (Reproduciendo == Rutas.Length - 1)
+                        {
+                            btnSiguiente.Enabled = false;
+
+                        }
+                        uploadAudio(Rutas[Reproduciendo]);
+                        txtTitle.Text = Titulos[Reproduciendo];
+                        btnAnterior.Enabled = true;
+                    }
+
+                }
+
             }
         }
 
@@ -134,6 +198,58 @@ namespace Reproductor_Proyecto_P1
         private void btnMinimizar_MouseClick(object sender, MouseEventArgs e)
         {
             this.WindowState = FormWindowState.Minimized;
+        }
+
+        private void btnAdelantar_Click(object sender, EventArgs e)
+        {
+            mtrackDuracion.Value = mtrackDuracion.Value + 10;
+        }
+
+        private void btnAtrasar_Click(object sender, EventArgs e)
+        {
+            mtrackDuracion.Value = mtrackDuracion.Value - 10;
+        }
+
+        private void btnLoop_Click(object sender, EventArgs e)
+        {
+            if (btnLoop.BackColor == Color.Transparent)
+            {
+                btnLoop.BackColor = btnLoop.FlatAppearance.MouseOverBackColor;
+                MediaPlayer.settings.setMode("loop", true);
+            }
+            else if (btnLoop.BackColor == btnLoop.FlatAppearance.MouseOverBackColor)
+            {
+                btnLoop.BackColor = Color.Transparent;
+                MediaPlayer.settings.setMode("loop", false);
+            }
+        }
+
+        private void btnSiguiente_Click(object sender, EventArgs e)
+        {
+            Reproduciendo = Reproduciendo + 1;
+            mtrackDuracion.Value = 0;
+            uploadAudio(Rutas[Reproduciendo]);
+            txtTitle.Text = Titulos[Reproduciendo];
+            btnAnterior.Enabled = true;
+            if (Reproduciendo == Rutas.Length - 1)
+            {
+                btnSiguiente.Enabled = false;
+            }
+            btnPlay.Text = ";";
+        }
+
+        private void btnAnterior_Click(object sender, EventArgs e)
+        {
+            Reproduciendo = Reproduciendo - 1;
+            mtrackDuracion.Value = 0;
+            uploadAudio(Rutas[Reproduciendo]);
+            txtTitle.Text = Titulos[Reproduciendo];
+            btnSiguiente.Enabled = true;
+            if (Reproduciendo == 0)
+            {
+                btnAnterior.Enabled = false;
+            }
+            btnPlay.Text = ";";
         }
     }
 }
