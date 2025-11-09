@@ -50,6 +50,7 @@
             label1 = new Label();
             timer1 = new System.Windows.Forms.Timer(components);
             panelCtrlBox = new Panel();
+            btnVisualization = new Button();
             ((System.ComponentModel.ISupportInitialize)mtrackDuracion).BeginInit();
             ((System.ComponentModel.ISupportInitialize)trackBarVolumen).BeginInit();
             ((System.ComponentModel.ISupportInitialize)MediaPlayer).BeginInit();
@@ -318,6 +319,21 @@
             panelCtrlBox.TabIndex = 17;
             panelCtrlBox.MouseMove += panelCtrlBox_MouseMove;
             // 
+            // btnVisualization
+            // 
+            btnVisualization.FlatAppearance.BorderSize = 0;
+            btnVisualization.FlatStyle = FlatStyle.Flat;
+            btnVisualization.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            btnVisualization.ForeColor = Color.FromArgb(4, 102, 200);
+            btnVisualization.Location = new Point(9, 196);
+            btnVisualization.Margin = new Padding(3, 4, 3, 4);
+            btnVisualization.Name = "btnVisualization";
+            btnVisualization.Size = new Size(120, 39);
+            btnVisualization.TabIndex = 18;
+            btnVisualization.Text = "Visualización";
+            btnVisualization.UseVisualStyleBackColor = true;
+            btnVisualization.Click += btnVisualization_Click;
+            // 
             // ReproductorPr
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -325,6 +341,7 @@
             BackColor = Color.FromArgb(227, 204, 174);
             ClientSize = new Size(398, 188);
             ControlBox = false;
+            Controls.Add(btnVisualization);
             Controls.Add(panelCtrlBox);
             Controls.Add(MediaPlayer);
             Controls.Add(button8);
@@ -375,5 +392,6 @@
         private Label label1;
         private System.Windows.Forms.Timer timer1;
         private Panel panelCtrlBox;
+        private Button btnVisualization;
     }
 }

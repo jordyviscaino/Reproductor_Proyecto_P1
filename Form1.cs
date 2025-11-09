@@ -2,6 +2,8 @@ namespace Reproductor_Proyecto_P1
 {
     public partial class ReproductorPr : Form
     {
+        private Form2 visualizationForm = null;
+
         public ReproductorPr()
         {
             InitializeComponent();
@@ -179,6 +181,21 @@ namespace Reproductor_Proyecto_P1
             mtrackDuracion.Value = 0;
             timer1.Stop();
         }
+
+        // Método para abrir la ventana de visualización
+        public void OpenVisualization()
+        {
+            if (visualizationForm == null || visualizationForm.IsDisposed)
+            {
+                visualizationForm = new Form2();
+                visualizationForm.Show();
+            }
+            else
+            {
+                visualizationForm.BringToFront();
+            }
+        }
+
         int positiony = 0;
         int positionx = 0;
         private void panelCtrlBox_MouseMove(object sender, MouseEventArgs e)
@@ -250,6 +267,21 @@ namespace Reproductor_Proyecto_P1
                 btnAnterior.Enabled = false;
             }
             btnPlay.Text = ";";
+        }
+
+        private void panelCtrlBox_Paint(object sender, PaintEventArgs e)
+        {
+
+        }
+
+        private void txtTitle_TextChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void btnVisualization_Click(object sender, EventArgs e)
+        {
+            OpenVisualization();
         }
     }
 }
