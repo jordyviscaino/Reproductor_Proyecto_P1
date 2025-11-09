@@ -36,15 +36,15 @@
             btnMinimizar = new Button();
             btnPlay = new Button();
             button2 = new Button();
-            button3 = new Button();
-            button4 = new Button();
-            button5 = new Button();
-            button6 = new Button();
+            btnAdelantar = new Button();
+            btnAtrasar = new Button();
+            btnSiguiente = new Button();
+            btnAnterior = new Button();
             txtTranscurrido = new TextBox();
             txtDuracion = new TextBox();
             trackBarVolumen = new TrackBar();
             button8 = new Button();
-            button7 = new Button();
+            btnLoop = new Button();
             btnUpload = new Button();
             MediaPlayer = new AxWMPLib.AxWindowsMediaPlayer();
             label1 = new Label();
@@ -70,7 +70,7 @@
             // 
             // txtTitle
             // 
-            txtTitle.BackColor = Color.FromArgb(0, 18, 51);
+            txtTitle.BackColor = Color.FromArgb(227, 204, 174);
             txtTitle.BorderStyle = BorderStyle.None;
             txtTitle.Font = new Font("Bauhaus 93", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
             txtTitle.ForeColor = Color.FromArgb(151, 157, 172);
@@ -116,6 +116,7 @@
             // 
             // btnPlay
             // 
+            btnPlay.Enabled = false;
             btnPlay.FlatAppearance.BorderSize = 0;
             btnPlay.FlatStyle = FlatStyle.Flat;
             btnPlay.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
@@ -131,6 +132,7 @@
             // 
             // button2
             // 
+            button2.Enabled = false;
             button2.FlatAppearance.BorderSize = 0;
             button2.FlatStyle = FlatStyle.Flat;
             button2.Font = new Font("Webdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
@@ -202,7 +204,7 @@
             // 
             // txtTranscurrido
             // 
-            txtTranscurrido.BackColor = Color.FromArgb(0, 18, 51);
+            txtTranscurrido.BackColor = Color.FromArgb(227, 204, 174);
             txtTranscurrido.BorderStyle = BorderStyle.None;
             txtTranscurrido.ForeColor = SystemColors.MenuBar;
             txtTranscurrido.Location = new Point(14, 121);
@@ -215,7 +217,7 @@
             // 
             // txtDuracion
             // 
-            txtDuracion.BackColor = Color.FromArgb(0, 18, 51);
+            txtDuracion.BackColor = Color.FromArgb(227, 204, 174);
             txtDuracion.BorderStyle = BorderStyle.None;
             txtDuracion.ForeColor = SystemColors.Window;
             txtDuracion.Location = new Point(385, 121);
@@ -273,7 +275,7 @@
             btnUpload.FlatAppearance.BorderSize = 0;
             btnUpload.FlatStyle = FlatStyle.Flat;
             btnUpload.Font = new Font("Wingdings", 14.25F, FontStyle.Regular, GraphicsUnit.Point, 2);
-            btnUpload.ForeColor = Color.Black;
+            btnUpload.ForeColor = Color.Transparent;
             btnUpload.Location = new Point(0, 0);
             btnUpload.Margin = new Padding(3, 4, 3, 4);
             btnUpload.Name = "btnUpload";
@@ -309,7 +311,7 @@
             // 
             // panelCtrlBox
             // 
-            panelCtrlBox.BackColor = Color.FromArgb(125, 133, 151);
+            panelCtrlBox.BackColor = Color.FromArgb(38, 42, 86);
             panelCtrlBox.Controls.Add(btnCerrar);
             panelCtrlBox.Controls.Add(label1);
             panelCtrlBox.Controls.Add(btnMinimizar);
@@ -349,14 +351,14 @@
             Controls.Add(panelCtrlBox);
             Controls.Add(MediaPlayer);
             Controls.Add(button8);
-            Controls.Add(button7);
+            Controls.Add(btnLoop);
             Controls.Add(trackBarVolumen);
             Controls.Add(txtDuracion);
             Controls.Add(txtTranscurrido);
-            Controls.Add(button6);
-            Controls.Add(button5);
-            Controls.Add(button4);
-            Controls.Add(button3);
+            Controls.Add(btnAnterior);
+            Controls.Add(btnSiguiente);
+            Controls.Add(btnAtrasar);
+            Controls.Add(btnAdelantar);
             Controls.Add(button2);
             Controls.Add(btnPlay);
             Controls.Add(txtTitle);
@@ -383,15 +385,15 @@
         private Button btnMinimizar;
         private Button btnPlay;
         private Button button2;
-        private Button button3;
-        private Button button4;
-        private Button button5;
-        private Button button6;
+        private Button btnAdelantar;
+        private Button btnAtrasar;
+        private Button btnSiguiente;
+        private Button btnAnterior;
         private TextBox txtTranscurrido;
         private TextBox txtDuracion;
         private TrackBar trackBarVolumen;
         private Button button8;
-        private Button button7;
+        private Button btnLoop;
         private Button btnUpload;
         private AxWMPLib.AxWindowsMediaPlayer MediaPlayer;
         private Label label1;

@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="lioncs.ColorSlider" Version="1.0.0" />
     <PackageReference Include="MACTrackBarLib.dll" Version="1.0.2" />
     <PackageReference Include="MACTrackBarNet6x64" Version="6.1.22" />
     <PackageReference Include="MACTrackBarNet6x86" Version="6.1.22" />
