@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Diagnostics; // agregado para Stopwatch
 
 namespace Reproductor_Proyecto_P1
 {
@@ -25,12 +26,11 @@ namespace Reproductor_Proyecto_P1
         private FormBorderStyle previousBorderStyle;
         private Size previousSize;
         private Point previousLocation;
-        private int ticksPerSecond;
         
         // Variables para cambio automático de temas
         private bool autoChangeThemes = true;
-        private int themeChangeCounter = 0;
-        private int themeChangeInterval = 100; // Se ajustará dinámicamente según la velocidad (aproximadamente 5 segundos)
+        private const int ThemeDurationSeconds = 10; // duración exacta por tema
+        private Stopwatch themeStopwatch; //  conteo por ticks
 
         public Form2()
         {
@@ -43,9 +43,7 @@ namespace Reproductor_Proyecto_P1
             // Inicializar barras de espectro
             spectrumBars = new float[64];
             for (int i = 0; i < spectrumBars.Length; i++)
-            {
                 spectrumBars[i] = random.Next(10, 100);
-            }
 
             // Inicializar partículas
             particles = new PointF[100];
@@ -56,22 +54,8 @@ namespace Reproductor_Proyecto_P1
                                         random.Next(Math.Max(1, panelVisualization.Height)));
                 particleVelocities[i] = (float)(random.NextDouble() * 5 + 1);
             }
-
             // Inicializar colores del tema actual
             UpdateThemeColors();
-            
-            // Calcular intervalo inicial basado en el timer
-            UpdateThemeChangeInterval();
-        }
-        
-        private void UpdateThemeChangeInterval()
-        {
-            // Calcular cuántos ticks necesitamos para 10 segundos
-            int targetSeconds = 10;
-            int timerInterval = Math.Max(10, timerAnimation.Interval); // Evitar división por cero
-
-            ticksPerSecond = 100 / timerInterval;
-            themeChangeInterval = (targetSeconds * 100) / timerInterval;
         }
 
         private void UpdateThemeColors()
@@ -114,72 +98,57 @@ namespace Reproductor_Proyecto_P1
                          ControlStyles.UserPaint | 
                          ControlStyles.DoubleBuffer | 
                          ControlStyles.ResizeRedraw, true);
-
-
             // Inicializar el checkbox
-            UpdateThemeChangeInterval();
             chkAutoChange.Checked = autoChangeThemes;
             lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
-            
+            themeStopwatch = Stopwatch.StartNew();
             timerAnimation.Start();
         }
 
         private void timerAnimation_Tick(object sender, EventArgs e)
         {
             animationFrame++;
-            
-            // Sistema de cambio automático de temas 
+
             if (autoChangeThemes)
             {
-                themeChangeCounter++;
+                if (themeStopwatch == null) themeStopwatch = Stopwatch.StartNew();
+                double elapsed = themeStopwatch.Elapsed.TotalSeconds;
+                int remaining = Math.Max(0, ThemeDurationSeconds - (int)Math.Floor(elapsed));
                 
-                // Calcular segundos restantes de manera más precisa
-               
-                int secondsRemaining = Math.Max(0, (themeChangeInterval - themeChangeCounter) / ticksPerSecond);
-                
-                // Actualizar indicador de progreso
-                if (secondsRemaining >= 0)
-                {
-                    lblProgress.Text = $"Próximo: {secondsRemaining}s";
-                }
+                // mostrar cuenta regresiva exacta 10 -> 1
+                if (remaining > 0)
+                    lblProgress.Text = $"Próximo: {remaining}s";
                 else
-                {
                     lblProgress.Text = "Cambiando...";
-                }
-                
-                // Cambiar tema cuando se alcance el intervalo
-                if (themeChangeCounter >= themeChangeInterval)
+
+                if (elapsed >= ThemeDurationSeconds)
                 {
-                    themeChangeCounter = 0;
-                    currentTheme = (currentTheme + 1) % themeNames.Length;
-                    lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
-                    UpdateThemeColors();
-                    
-                    // Efecto visual de transición más simple
-                    FlashTransition();
+                    ChangeThemeAuto();
                 }
             }
             else
             {
                 lblProgress.Text = "Manual";
-                themeChangeCounter = 0; // Resetear contador en modo manual
+                if (themeStopwatch != null)
+                {
+                    themeStopwatch.Stop();
+                    themeStopwatch = null;
+                }
             }
-            
-            // Actualizar barras de espectro con movimiento aleatorio
+
+            // Actualizar datos visuales
             for (int i = 0; i < spectrumBars.Length; i++)
             {
                 float change = (float)(random.NextDouble() - 0.5) * 20;
                 spectrumBars[i] = Math.Max(10, Math.Min(200, spectrumBars[i] + change));
             }
 
-            // Actualizar partículas
             for (int i = 0; i < particles.Length; i++)
             {
                 particles[i] = new PointF(
                     particles[i].X + particleVelocities[i] * (float)Math.Sin(animationFrame * 0.1 + i),
                     particles[i].Y + particleVelocities[i] * (float)Math.Cos(animationFrame * 0.1 + i)
                 );
-
                 // Reciclar partículas que salen de los límites
                 if (particles[i].X < 0 || particles[i].X > panelVisualization.Width ||
                     particles[i].Y < 0 || particles[i].Y > panelVisualization.Height)
@@ -190,8 +159,17 @@ namespace Reproductor_Proyecto_P1
                     );
                 }
             }
-
             panelVisualization.Invalidate();
+        }
+
+        private void ChangeThemeAuto()
+        {
+            themeStopwatch.Restart();
+            currentTheme = (currentTheme + 1) % themeNames.Length;
+            lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
+            UpdateThemeColors();
+            // Efecto visual de transición
+            FlashTransition();
         }
 
         private void btnChangeTheme_Click(object sender, EventArgs e)
@@ -206,7 +184,7 @@ namespace Reproductor_Proyecto_P1
                 autoChangeThemes = false;
                 chkAutoChange.Checked = false;
                 lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
-                
+                if (themeStopwatch != null) { themeStopwatch.Stop(); themeStopwatch = null; }
                 // Programar regreso al modo automático (SIN Task.Delay problemático)
                 System.Windows.Forms.Timer tempTimer = new System.Windows.Forms.Timer();
                 tempTimer.Interval = 30000; // 30 segundos
@@ -216,8 +194,8 @@ namespace Reproductor_Proyecto_P1
                     {
                         autoChangeThemes = true;
                         chkAutoChange.Checked = true;
-                        themeChangeCounter = 0;
                         lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
+                        themeStopwatch = Stopwatch.StartNew();
                     }
                     tempTimer.Stop();
                     tempTimer.Dispose();
@@ -515,18 +493,14 @@ namespace Reproductor_Proyecto_P1
             // Valor más alto = animación más rápida (menor intervalo)
             int newInterval = Math.Max(10, 110 - trackBarSpeed.Value); // Asegurar mínimo de 10ms
             timerAnimation.Interval = newInterval;
-            
-            // Recalcular el intervalo de cambio de tema para mantener 10 segundos
-            UpdateThemeChangeInterval();
-            
-            // Resetear contador para evitar cambios inmediatos no deseados
-            themeChangeCounter = 0;
+            if (autoChangeThemes)
+            {
+                // reinicia el tiempo para que el segundo siguiente sea exacto
+                themeStopwatch?.Restart();
+            }
         }
 
-        private void btnFullscreen_Click(object sender, EventArgs e)
-        {
-            ToggleFullscreen();
-        }
+        private void btnFullscreen_Click(object sender, EventArgs e) => ToggleFullscreen();
 
         private void ToggleFullscreen()
         {
@@ -590,15 +564,16 @@ namespace Reproductor_Proyecto_P1
         private void chkAutoChange_CheckedChanged(object sender, EventArgs e)
         {
             autoChangeThemes = chkAutoChange.Checked;
-            themeChangeCounter = 0; // Reiniciar contador siempre
-            
-            // Actualizar la etiqueta del tema
-            string mode = autoChangeThemes ? " (Auto)" : " (Manual)";
-            lblTheme.Text = "Tema: " + themeNames[currentTheme] + mode;
-            
-            // Actualizar el indicador de progreso inmediatamente
-            if (!autoChangeThemes)
+            if (autoChangeThemes)
             {
+                themeStopwatch = Stopwatch.StartNew();
+                lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
+            }
+            else
+            {
+                themeStopwatch?.Stop();
+                themeStopwatch = null;
+                lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
                 lblProgress.Text = "Manual";
             }
         }
