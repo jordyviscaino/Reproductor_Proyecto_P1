@@ -1,12 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
 namespace Reproductor_Proyecto_P1
 {
     public partial class ReproductorPr : Form
     {
         private Form2 visualizationForm = null;
+        private AudioAnalyzer audioAnalyzer;
+        private bool currentFileIsWav = false;
+        private Stopwatch vizStopwatch = new Stopwatch();
+        private bool beatSubscribed = false;
+        private bool onsetSubscribed = false;
 
         public ReproductorPr()
         {
             InitializeComponent();
+            audioAnalyzer = new AudioAnalyzer();
+            this.FormClosing += ReproductorPr_FormClosing;
+            vizStopwatch.Start();
+        }
+
+        private void ReproductorPr_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            if (audioAnalyzer != null && beatSubscribed)
+            {
+                audioAnalyzer.BeatDetected -= OnBeatDetected;
+                beatSubscribed = false;
+            }
+            if (audioAnalyzer != null && onsetSubscribed)
+            {
+                audioAnalyzer.OnsetDetected -= OnOnsetDetected;
+                onsetSubscribed = false;
+            }
+            audioAnalyzer?.Dispose();
+        }
+
+        private void OnBeatDetected()
+        {
+            if (visualizationForm != null && !visualizationForm.IsDisposed)
+            {
+                try
+                {
+                    visualizationForm.BeginInvoke(new Action(() => visualizationForm.TriggerBeat()));
+                }
+                catch { }
+            }
+        }
+
+        private void OnOnsetDetected(OnsetType type)
+        {
+            if (visualizationForm != null && !visualizationForm.IsDisposed)
+            {
+                try
+                {
+                    visualizationForm.BeginInvoke(new Action(() => visualizationForm.TriggerOnset(type)));
+                }
+                catch { }
+            }
         }
 
         private void textBox2_TextChanged(object sender, EventArgs e)
@@ -56,8 +114,61 @@ namespace Reproductor_Proyecto_P1
         {
             try
             {
+                // unsubscribe previous beat/ onset handlers if any
+                if (audioAnalyzer != null && beatSubscribed)
+                {
+                    audioAnalyzer.BeatDetected -= OnBeatDetected;
+                    beatSubscribed = false;
+                }
+                if (audioAnalyzer != null && onsetSubscribed)
+                {
+                    audioAnalyzer.OnsetDetected -= OnOnsetDetected;
+                    onsetSubscribed = false;
+                }
+
                 MediaPlayer.URL = @"" + ruta;
                 timer1.Start();
+
+                // If WAV, load samples into analyzer for position-based FFT
+                if (System.IO.Path.GetExtension(ruta).ToLowerInvariant() == ".wav")
+                {
+                    bool loaded = audioAnalyzer.LoadWav(ruta);
+                    currentFileIsWav = loaded;
+                    if (!loaded)
+                    {
+                        // failed to load as WAV; ensure analyzer not used
+                        currentFileIsWav = false;
+                    }
+                    else
+                    {
+                        // ensure visualization form exists so triggers have effect
+                        if (visualizationForm == null || visualizationForm.IsDisposed)
+                        {
+                            visualizationForm = new Form2();
+                            visualizationForm.Show();
+                        }
+
+                        // subscribe to beat events
+                        if (!beatSubscribed)
+                        {
+                            audioAnalyzer.BeatDetected += OnBeatDetected;
+                            beatSubscribed = true;
+                        }
+                        if (!onsetSubscribed)
+                        {
+                            audioAnalyzer.OnsetDetected += OnOnsetDetected;
+                            onsetSubscribed = true;
+                        }
+
+                        // restart visualization timer
+                        vizStopwatch.Restart();
+                    }
+                }
+                else
+                {
+                    // unsupported format for analyzer
+                    currentFileIsWav = false;
+                }
             }
             catch (Exception ex)
             {
@@ -107,6 +218,28 @@ namespace Reproductor_Proyecto_P1
             trackBarVolumen.Value = MediaPlayer.settings.volume;
             txtDuracion.Text = MediaPlayer.currentMedia.durationString;
             txtTranscurrido.Text = MediaPlayer.Ctlcontrols.currentPositionString;
+
+            // Poll analyzer position ~40Hz to compute spectrum synchronized to playback position
+            if (currentFileIsWav && visualizationForm != null && !visualizationForm.IsDisposed)
+            {
+                if (MediaPlayer.playState == WMPLib.WMPPlayState.wmppsPlaying || MediaPlayer.playState == WMPLib.WMPPlayState.wmppsPaused)
+                {
+                    if (vizStopwatch.ElapsedMilliseconds >= 25) // ~40 fps
+                    {
+                        double pos = MediaPlayer.Ctlcontrols.currentPosition;
+                        var bands = audioAnalyzer.GetBandsAtPosition(pos);
+                        if (bands != null)
+                        {
+                            try
+                            {
+                                visualizationForm.BeginInvoke(new Action(() => visualizationForm.UpdateSpectrum(bands)));
+                            }
+                            catch { }
+                        }
+                        vizStopwatch.Restart();
+                    }
+                }
+            }
         }
         int Reproduciendo;
         string[] Rutas;
@@ -180,6 +313,7 @@ namespace Reproductor_Proyecto_P1
             txtTranscurrido.Text = "00:00";
             mtrackDuracion.Value = 0;
             timer1.Stop();
+            audioAnalyzer.Stop();
         }
 
         // Método para abrir la ventana de visualización

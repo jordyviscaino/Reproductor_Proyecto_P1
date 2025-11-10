@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics; // agregado para Stopwatch
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Diagnostics; // agregado para Stopwatch
 
 namespace Reproductor_Proyecto_P1
 {
@@ -16,21 +17,55 @@ namespace Reproductor_Proyecto_P1
         private Random random = new Random();
         private int animationFrame = 0;
         private int currentTheme = 0;
+        // spectrum source (target) and working values
         private float[] spectrumBars;
+        private float[] targetSpectrum;
+        // visual smoothing per-bar for the new AudioMeter effect
+        private float[] smoothedBars;
+        private float[] peakHold;
+        private int[] peakHoldTimer; // ms
+
         private PointF[] particles;
         private float[] particleVelocities;
         private Color[] themeColors;
+        // Added AudioMeter as an extra effect
         private string[] themeNames = { "Espectro", "Ondas", "Partículas", "Psicodélico", "Neón" };
         private bool isFullscreen = false;
         private FormWindowState previousWindowState;
         private FormBorderStyle previousBorderStyle;
         private Size previousSize;
         private Point previousLocation;
-        
+
         // Variables para cambio automático de temas
         private bool autoChangeThemes = true;
         private const int ThemeDurationSeconds = 10; // duración exacta por tema
         private Stopwatch themeStopwatch; //  conteo por ticks
+
+        // Beat reaction
+        private float beatIntensity = 0f; // 0..1
+        private const float beatDecayPerTick = 0.08f; // decay per animation tick
+
+        // Track last time live spectrum was updated to avoid overwriting it with random data
+        private DateTime lastSpectrumUpdate = DateTime.MinValue;
+        private int spectrumHoldMs = 120; // tiempo en ms para considerar datos como recientes (reducido)
+        private bool liveReceived = false; // recibimos datos en vivo
+        private bool firstLiveHandled = false; // evitar saltos iniciales
+        private bool manualSpeedActive = false; // usuario ajustó velocidad manualmente
+        private System.Windows.Forms.Timer manualSpeedTimer;
+
+        // Onset reaction state
+        private float onsetLowPulse = 0f;
+        private float onsetMidPulse = 0f;
+        private float onsetHighPulse = 0f;
+
+        // AudioMeter parameters (per-bar independent behavior)
+        private const float MeterAttack = 0.6f;   // rapidez de subida (0..1)
+        private const float MeterRelease = 0.12f; // rapidez de bajada (0..1)
+        private const int PeakHoldMs = 300;       // tiempo que mantiene pico
+        private float maxBarHeightFactor = 1.0f;  // escala máxima relativa (1.0 = full height)
+
+        // reference magnitude for mapping input magnitudes to display range
+        private float referenceMagnitude = 60f; // adjust depending on analyzer output
 
         public Form2()
         {
@@ -42,6 +77,10 @@ namespace Reproductor_Proyecto_P1
         {
             // Inicializar barras de espectro
             spectrumBars = new float[64];
+            targetSpectrum = new float[64];
+            smoothedBars = new float[64];
+            peakHold = new float[64];
+            peakHoldTimer = new int[64];
             for (int i = 0; i < spectrumBars.Length; i++)
                 spectrumBars[i] = random.Next(10, 100);
 
@@ -50,12 +89,17 @@ namespace Reproductor_Proyecto_P1
             particleVelocities = new float[particles.Length];
             for (int i = 0; i < particles.Length; i++)
             {
-                particles[i] = new PointF(random.Next(Math.Max(1, panelVisualization.Width)), 
+                particles[i] = new PointF(random.Next(Math.Max(1, panelVisualization.Width)),
                                         random.Next(Math.Max(1, panelVisualization.Height)));
                 particleVelocities[i] = (float)(random.NextDouble() * 5 + 1);
             }
             // Inicializar colores del tema actual
             UpdateThemeColors();
+
+            // Timer para detectar actividad manual en control de velocidad
+            manualSpeedTimer = new System.Windows.Forms.Timer();
+            manualSpeedTimer.Interval = 2000; // 2s de inactividad -> salir modo manual
+            manualSpeedTimer.Tick += (s, e) => { manualSpeedActive = false; manualSpeedTimer.Stop(); };
         }
 
         private void UpdateThemeColors()
@@ -63,40 +107,43 @@ namespace Reproductor_Proyecto_P1
             switch (currentTheme)
             {
                 case 0: // Espectro
-                    themeColors = new Color[] { 
-                        Color.Red, Color.Orange, Color.Yellow, Color.Green, 
-                        Color.Blue, Color.Indigo, Color.Violet 
+                    themeColors = new Color[] {
+                        Color.Red, Color.Orange, Color.Yellow, Color.Green,
+                        Color.Blue, Color.Indigo, Color.Violet
                     };
                     break;
                 case 1: // Ondas
-                    themeColors = new Color[] { 
-                        Color.DeepSkyBlue, Color.Cyan, Color.Aqua, Color.Teal 
+                    themeColors = new Color[] {
+                        Color.DeepSkyBlue, Color.Cyan, Color.Aqua, Color.Teal
                     };
                     break;
                 case 2: // Partículas
-                    themeColors = new Color[] { 
-                        Color.Gold, Color.Orange, Color.OrangeRed, Color.Red 
+                    themeColors = new Color[] {
+                        Color.Gold, Color.Orange, Color.OrangeRed, Color.Red
                     };
                     break;
                 case 3: // Psicodélico
-                    themeColors = new Color[] { 
-                        Color.Magenta, Color.Lime, Color.Cyan, Color.Yellow, 
-                        Color.HotPink, Color.Purple, Color.SpringGreen 
+                    themeColors = new Color[] {
+                        Color.Magenta, Color.Lime, Color.Cyan, Color.Yellow,
+                        Color.HotPink, Color.Purple, Color.SpringGreen
                     };
                     break;
                 case 4: // Neón 
-                    themeColors = new Color[] { 
-                        Color.Lime, Color.Cyan, Color.Magenta, Color.Yellow, Color.White 
+                    themeColors = new Color[] {
+                        Color.Lime, Color.Cyan, Color.Magenta, Color.Yellow, Color.White
                     };
+                    break;
+                default:
+                    themeColors = new Color[] { Color.White };
                     break;
             }
         }
 
         private void Form2_Load(object sender, EventArgs e)
         {
-            this.SetStyle(ControlStyles.AllPaintingInWmPaint | 
-                         ControlStyles.UserPaint | 
-                         ControlStyles.DoubleBuffer | 
+            this.SetStyle(ControlStyles.AllPaintingInWmPaint |
+                         ControlStyles.UserPaint |
+                         ControlStyles.DoubleBuffer |
                          ControlStyles.ResizeRedraw, true);
             // Inicializar el checkbox
             chkAutoChange.Checked = autoChangeThemes;
@@ -114,7 +161,7 @@ namespace Reproductor_Proyecto_P1
                 if (themeStopwatch == null) themeStopwatch = Stopwatch.StartNew();
                 double elapsed = themeStopwatch.Elapsed.TotalSeconds;
                 int remaining = Math.Max(0, ThemeDurationSeconds - (int)Math.Floor(elapsed));
-                
+
                 // mostrar cuenta regresiva exacta 10 -> 1
                 if (remaining > 0)
                     lblProgress.Text = $"Próximo: {remaining}s";
@@ -136,18 +183,52 @@ namespace Reproductor_Proyecto_P1
                 }
             }
 
-            // Actualizar datos visuales
-            for (int i = 0; i < spectrumBars.Length; i++)
+            // Decay beat intensity
+            if (beatIntensity > 0f)
             {
-                float change = (float)(random.NextDouble() - 0.5) * 20;
-                spectrumBars[i] = Math.Max(10, Math.Min(200, spectrumBars[i] + change));
+                beatIntensity -= beatDecayPerTick;
+                if (beatIntensity < 0f) beatIntensity = 0f;
+            }
+
+            // Decay onset pulses
+            onsetLowPulse = Math.Max(0f, onsetLowPulse - 0.08f);
+            onsetMidPulse = Math.Max(0f, onsetMidPulse - 0.06f);
+            onsetHighPulse = Math.Max(0f, onsetHighPulse - 0.05f);
+
+            // Only randomize spectrum if we haven't received live spectrum recently
+            bool haveRecentSpectrum = (DateTime.UtcNow - lastSpectrumUpdate).TotalMilliseconds < spectrumHoldMs;
+            if (!haveRecentSpectrum)
+            {
+                if (spectrumBars == null)
+                {
+                    spectrumBars = new float[64];
+                    for (int i = 0; i < spectrumBars.Length; i++) spectrumBars[i] = random.Next(10, 100);
+                }
+
+                for (int i = 0; i < spectrumBars.Length; i++)
+                {
+                    // solo modificar cuando no hay input real
+                    float change = (float)(random.NextDouble() - 0.5) * 20;
+                    spectrumBars[i] = Math.Max(10, Math.Min(200, spectrumBars[i] + change));
+                }
+            }
+
+            // Si recibimos espectro en vivo, acercamos spectrumBars a targetSpectrum suavemente
+            if (liveReceived && targetSpectrum != null && spectrumBars != null && targetSpectrum.Length == spectrumBars.Length)
+            {
+                float lerp = manualSpeedActive ? 0.75f : 0.25f; // más rápido si el usuario puso velocidad manual
+                for (int i = 0; i < spectrumBars.Length; i++)
+                {
+                    spectrumBars[i] = Lerp(spectrumBars[i], targetSpectrum[i], lerp);
+                }
             }
 
             for (int i = 0; i < particles.Length; i++)
             {
+                float speedMod = 1f + (beatIntensity + onsetLowPulse * 0.6f + onsetMidPulse * 0.4f + onsetHighPulse * 0.2f) * 2f;
                 particles[i] = new PointF(
-                    particles[i].X + particleVelocities[i] * (float)Math.Sin(animationFrame * 0.1 + i),
-                    particles[i].Y + particleVelocities[i] * (float)Math.Cos(animationFrame * 0.1 + i)
+                    particles[i].X + particleVelocities[i] * speedMod * (float)Math.Sin(animationFrame * 0.1 + i),
+                    particles[i].Y + particleVelocities[i] * speedMod * (float)Math.Cos(animationFrame * 0.1 + i)
                 );
                 // Reciclar partículas que salen de los límites
                 if (particles[i].X < 0 || particles[i].X > panelVisualization.Width ||
@@ -177,7 +258,7 @@ namespace Reproductor_Proyecto_P1
             // Cambiar tema inmediatamente
             currentTheme = (currentTheme + 1) % themeNames.Length;
             UpdateThemeColors();
-            
+
             // Si estaba en automático, cambiar temporalmente a manual
             if (autoChangeThemes)
             {
@@ -206,18 +287,18 @@ namespace Reproductor_Proyecto_P1
             {
                 lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
             }
-            
+
             // Efecto visual
             FlashTransition();
         }
-        
+
         private void FlashTransition()
         {
             // Efecto de transición simple sin Task.Delay problemático
             if (themeColors != null && themeColors.Length > 0)
             {
                 panelVisualization.BackColor = themeColors[0];
-                
+
                 // Usar Timer para restaurar el color de fondo
                 System.Windows.Forms.Timer flashTimer = new System.Windows.Forms.Timer();
                 flashTimer.Interval = 150;
@@ -234,11 +315,131 @@ namespace Reproductor_Proyecto_P1
             }
         }
 
+        // Public method to be called when a beat is detected
+        public void TriggerBeat()
+        {
+            // Reacciona en todas las formas: aumenta intención del beat
+            beatIntensity = Math.Min(1f, beatIntensity + 0.9f);
+            // pequeña flash visual
+            panelVisualization.BackColor = Color.FromArgb(20, Color.White);
+            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
+            t.Interval = 80;
+            t.Tick += (s, e) =>
+            {
+                panelVisualization.BackColor = Color.Black;
+                t.Stop();
+                t.Dispose();
+            };
+            t.Start();
+        }
+
+        // Trigger onset with region type
+        public void TriggerOnset(OnsetType type)
+        {
+            switch (type)
+            {
+                case OnsetType.Low:
+                    onsetLowPulse = 1.0f;
+                    // stronger flash in warm color
+                    panelVisualization.BackColor = Color.FromArgb(30, Color.OrangeRed);
+                    break;
+                case OnsetType.Mid:
+                    onsetMidPulse = 1.0f;
+                    panelVisualization.BackColor = Color.FromArgb(30, Color.DeepSkyBlue);
+                    break;
+                case OnsetType.High:
+                    onsetHighPulse = 1.0f;
+                    panelVisualization.BackColor = Color.FromArgb(30, Color.Magenta);
+                    break;
+            }
+
+            System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
+            t.Interval = 90;
+            t.Tick += (s, e) =>
+            {
+                if (!this.IsDisposed)
+                    panelVisualization.BackColor = Color.Black;
+                t.Stop();
+                t.Dispose();
+            };
+            t.Start();
+        }
+
+        // Método público para recibir espectro desde Form1
+        public void UpdateSpectrum(float[] bands)
+        {
+            if (bands == null || bands.Length == 0) return;
+
+            // desired output band count (display bars)
+            int outputBands = spectrumBars != null && spectrumBars.Length > 0 ? spectrumBars.Length : 64;
+
+            // ensure target/smoothing arrays sized to outputBands
+            if (targetSpectrum == null || targetSpectrum.Length != outputBands)
+            {
+                targetSpectrum = new float[outputBands];
+            }
+            if (smoothedBars == null || smoothedBars.Length != outputBands)
+                smoothedBars = new float[outputBands];
+            if (peakHold == null || peakHold.Length != outputBands)
+            {
+                peakHold = new float[outputBands];
+                peakHoldTimer = new int[outputBands];
+            }
+            if (spectrumBars == null || spectrumBars.Length != outputBands)
+                spectrumBars = new float[outputBands];
+
+            int inputBins = bands.Length;
+
+            if (inputBins == outputBands)
+            {
+                for (int i = 0; i < outputBands; i++)
+                {
+                    float mapped = 10f + (bands[i] / referenceMagnitude) * 190f;
+                    targetSpectrum[i] = Math.Clamp(mapped, 10f, 200f);
+                }
+            }
+            else
+            {
+                // logarithmic grouping: geometric partition of input bins into output bands
+                for (int b = 0; b < outputBands; b++)
+                {
+                    double startF = Math.Pow((double)inputBins, (double)b / outputBands);
+                    double endF = Math.Pow((double)inputBins, (double)(b + 1) / outputBands);
+                    int start = (int)Math.Floor(startF);
+                    int end = Math.Max(start, (int)Math.Floor(endF) - 1);
+                    start = Math.Clamp(start, 0, inputBins - 1);
+                    end = Math.Clamp(end, 0, inputBins - 1);
+
+                    float sum = 0f;
+                    int count = 0;
+                    for (int k = start; k <= end; k++)
+                    {
+                        sum += bands[k];
+                        count++;
+                    }
+                    float avg = count > 0 ? sum / count : 0f;
+
+                    float mapped = 10f + (avg / referenceMagnitude) * 190f;
+                    targetSpectrum[b] = Math.Clamp(mapped, 10f, 200f);
+                }
+            }
+
+            // on first live update, copy target directly to avoid jump
+            if (!firstLiveHandled)
+            {
+                for (int i = 0; i < targetSpectrum.Length; i++) spectrumBars[i] = targetSpectrum[i];
+                firstLiveHandled = true;
+            }
+
+            liveReceived = true;
+            lastSpectrumUpdate = DateTime.UtcNow;
+        }
+
         private void panelVisualization_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            
+
             switch (currentTheme)
             {
                 case 0:
@@ -261,38 +462,87 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawSpectrum(Graphics g)
         {
-            int barWidth = panelVisualization.Width / spectrumBars.Length;
-            
-            for (int i = 0; i < spectrumBars.Length; i++)
+            if (spectrumBars == null || spectrumBars.Length == 0) return;
+
+            int bands = spectrumBars.Length;
+            float width = panelVisualization.ClientSize.Width;
+            float height = panelVisualization.ClientSize.Height;
+            float barW = Math.Max(2f, (width / bands) * 0.85f);
+            float gap = Math.Max(1f, (width / bands) * 0.15f);
+
+            // Ensure smoothing arrays exist
+            if (smoothedBars == null || smoothedBars.Length != bands) smoothedBars = new float[bands];
+            if (peakHold == null || peakHold.Length != bands) { peakHold = new float[bands]; peakHoldTimer = new int[bands]; }
+
+            for (int i = 0; i < bands; i++)
             {
-                int barHeight = (int)spectrumBars[i];
-                Color color = themeColors[i % themeColors.Length];
-                
-                using (Pen pen = new Pen(color, 2))
+                float target = spectrumBars[i];
+
+                // per-bar attack/release smoothing
+                if (target > smoothedBars[i])
+                    smoothedBars[i] = Lerp(smoothedBars[i], target, MeterAttack);
+                else
+                    smoothedBars[i] = Lerp(smoothedBars[i], target, MeterRelease);
+
+                // peak hold handling
+                if (smoothedBars[i] > peakHold[i])
                 {
-                    // Dibujar barras del espectro línea por línea desde abajo hacia arriba
-                    int x = i * barWidth;
-                    int startY = panelVisualization.Height;
-                    int endY = panelVisualization.Height - barHeight;
-                    
-                    // Dibujar múltiples líneas verticales para crear grosor
-                    for (int thickness = 0; thickness < barWidth - 2; thickness++)
-                    {
-                        g.DrawLine(pen, x + thickness, startY, x + thickness, endY);
-                    }
-                    
-                    // Agregar efecto de degradado dibujando líneas con transparencia variable
-                    for (int y = endY; y < startY; y += 2)
-                    {
-                        float alpha = (float)(startY - y) / barHeight;
-                        Color gradientColor = Color.FromArgb((int)(255 * alpha), color);
-                        using (Pen gradientPen = new Pen(gradientColor, 1))
-                        {
-                            g.DrawLine(gradientPen, x, y, x + barWidth - 2, y);
-                        }
-                    }
+                    peakHold[i] = smoothedBars[i];
+                    peakHoldTimer[i] = PeakHoldMs;
                 }
+                else if (peakHoldTimer[i] > 0)
+                {
+                    peakHoldTimer[i] -= Math.Max(1, timerAnimation.Interval);
+                }
+                else
+                {
+                    peakHold[i] = Lerp(peakHold[i], smoothedBars[i], 0.08f);
+                }
+
+                // apply beat emphasis stronger on lower indices (graves)
+                float beatBoost = 1f + beatIntensity * (i < Math.Max(1, bands / 8) ? 1.6f : 0.45f);
+                float value = smoothedBars[i] * beatBoost;
+
+                float norm = Math.Clamp(value / 200f, 0f, 1f);
+                float bH = Math.Max(2f, norm * height * maxBarHeightFactor);
+
+                float x = i * (barW + gap);
+                float y = height - bH;
+
+                var rect = new RectangleF(x, y, barW, bH);
+
+                // base color selection by index
+                Color baseColor = themeColors[i % themeColors.Length];
+                using (var brush = new LinearGradientBrush(rect, Color.FromArgb(220, baseColor), Color.FromArgb(60, Color.Black), LinearGradientMode.Vertical))
+                using (var path = RoundedRect(rect, Math.Min(barW, 8f)))
+                {
+                    g.FillPath(brush, path);
+                    using (var pen = new Pen(Color.FromArgb(120, Color.Black), 1f)) g.DrawPath(pen, path);
+                }
+
+                // draw peak hold marker
+                float peakY = height - Math.Clamp(peakHold[i] / 200f * height, 0f, height);
+                var peakRect = new RectangleF(x, Math.Max(0, peakY - 4), barW, 4);
+                using (var pb = new SolidBrush(Color.FromArgb(220, 255, 255, 255))) g.FillRectangle(pb, peakRect);
             }
+        }
+
+        // keep RoundedRect helper (already present)
+        private static GraphicsPath RoundedRect(RectangleF r, float radius)
+        {
+            var path = new GraphicsPath();
+            if (radius <= 0f)
+            {
+                path.AddRectangle(r);
+                return path;
+            }
+            float d = radius * 2f;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         private void DrawWaves(Graphics g)
@@ -304,6 +554,8 @@ namespace Reproductor_Proyecto_P1
                 {
                     // Parámetros de la onda
                     float amplitude = 40 + wave * 15;  // Amplitud
+                    // boost amplitude with beat
+                    amplitude *= (1f + beatIntensity * 0.5f);
                     float frequency = 0.01f + wave * 0.005f;  // Frecuencia
                     float phase = animationFrame * (0.05f + wave * 0.02f);  // Fase
                     float verticalOffset = panelVisualization.Height / 2 + wave * 20;
@@ -311,14 +563,20 @@ namespace Reproductor_Proyecto_P1
                     // Dibujar onda punto por punto conectando líneas
                     for (int x = 0; x < panelVisualization.Width - 1; x++)
                     {
-                        // Ecuación harmónica: y = A * sin(fx + φ) + offset
                         float y1 = verticalOffset + amplitude * (float)Math.Sin(frequency * x + phase);
                         float y2 = verticalOffset + amplitude * (float)Math.Sin(frequency * (x + 1) + phase);
-						
-						// Agregar componente adicional para mayor complejidad
-						y1 += (amplitude * 0.3f) * (float)Math.Cos(frequency * x * 2 + phase * 1.5f);
+                        
+                        // componente adicional
+                        y1 += (amplitude * 0.3f) * (float)Math.Cos(frequency * x * 2 + phase * 1.5f);
                         y2 += (amplitude * 0.3f) * (float)Math.Cos(frequency * (x + 1) * 2 + phase * 1.5f);
-						
+                        
+                        if (spectrumBars != null && spectrumBars.Length > 4)
+                        {
+                            float low = (spectrumBars[0] + spectrumBars[1] + spectrumBars[2]) / 3f;
+                            y1 += (low / 50f) * 20f;
+                            y2 += (low / 50f) * 20f;
+                        }
+                        
                         g.DrawLine(pen, x, y1, x + 1, y2);
                     }
                 }
@@ -331,19 +589,25 @@ namespace Reproductor_Proyecto_P1
             for (int i = 0; i < particles.Length; i++)
             {
                 Color color = Color.FromArgb(200, themeColors[i % themeColors.Length]);
-                
-                // Ecuaciones paramétricas para movimiento circular/espiral
+
                 float t = animationFrame * 0.1f + i;
                 float radius = 3 + 2 * (float)Math.Sin(t);
-                
-                // Calcular posición con ecuaciones paramétricas
-                // x = r*cos(t), y = r*sin(t) para movimiento circular
+
                 float centerX = particles[i].X;
                 float centerY = particles[i].Y;
-                
+
+                // If spectrum exists, modulate size
+                if (spectrumBars != null && spectrumBars.Length > 0)
+                {
+                    float idx = (i % spectrumBars.Length);
+                    radius += spectrumBars[(int)idx] / 100f;
+                }
+
+                // increase radius on beat
+                radius *= 1f + beatIntensity * 0.8f;
+
                 using (Pen pen = new Pen(color, 2))
                 {
-                    // Dibujar partícula como estrella usando líneas radiales
                     int rays = 8;
                     for (int ray = 0; ray < rays; ray++)
                     {
@@ -352,22 +616,21 @@ namespace Reproductor_Proyecto_P1
                         float y1 = centerY + radius * 0.3f * (float)Math.Sin(angle);
                         float x2 = centerX + radius * (float)Math.Cos(angle);
                         float y2 = centerY + radius * (float)Math.Sin(angle);
-                        
+
                         g.DrawLine(pen, x1, y1, x2, y2);
                     }
-                    
-                    // Dibujar círculo usando líneas (aproximación poligonal)
+
                     int segments = 12;
                     for (int seg = 0; seg < segments; seg++)
                     {
                         float angle1 = (2 * (float)Math.PI * seg) / segments;
                         float angle2 = (2 * (float)Math.PI * (seg + 1)) / segments;
-                        
+
                         float x1 = centerX + radius * (float)Math.Cos(angle1);
                         float y1 = centerY + radius * (float)Math.Sin(angle1);
                         float x2 = centerX + radius * (float)Math.Cos(angle2);
                         float y2 = centerY + radius * (float)Math.Sin(angle2);
-                        
+
                         g.DrawLine(pen, x1, y1, x2, y2);
                     }
                 }
@@ -376,33 +639,26 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawPsychedelic(Graphics g)
         {
-            // Espirales matemáticas usando ecuaciones polares
             PointF center = new PointF(panelVisualization.Width / 2, panelVisualization.Height / 2);
             
-            // Dibujar múltiples espirales con diferentes parámetros
             for (int spiral = 0; spiral < themeColors.Length; spiral++)
             {
                 using (Pen pen = new Pen(themeColors[spiral], 2))
                 {
-                    // Parámetros de la espiral
-                    float a = 2 + spiral;  // Factor de expansión
-                    float b = 0.5f + spiral * 0.2f;  // Factor de separación
+                    float a = 2 + spiral;  
+                    float b = 0.5f + spiral * 0.2f;  
                     float rotationSpeed = animationFrame * (0.02f + spiral * 0.01f);
                     
-                    // Dibujar espiral usando ecuaciones polares: r = a + b*θ
                     for (float theta = 0; theta < 6 * Math.PI; theta += 0.1f)
                     {
-                        // Ecuación de espiral de Arquímedes: r = a + b*θ
                         float r1 = a + b * theta;
                         float r2 = a + b * (theta + 0.1f);
                         
-                        // Convertir coordenadas polares a cartesianas
                         float x1 = center.X + r1 * (float)Math.Cos(theta + rotationSpeed);
                         float y1 = center.Y + r1 * (float)Math.Sin(theta + rotationSpeed);
                         float x2 = center.X + r2 * (float)Math.Cos(theta + 0.1f + rotationSpeed);
                         float y2 = center.Y + r2 * (float)Math.Sin(theta + 0.1f + rotationSpeed);
                         
-                        // Verificar que los puntos estén dentro de la pantalla
                         if (x1 >= 0 && x1 < panelVisualization.Width && y1 >= 0 && y1 < panelVisualization.Height &&
                             x2 >= 0 && x2 < panelVisualization.Width && y2 >= 0 && y2 < panelVisualization.Height)
                         {
@@ -412,7 +668,6 @@ namespace Reproductor_Proyecto_P1
                 }
             }
             
-            // Agregar líneas radiales rotativas
             for (int i = 0; i < 12; i++)
             {
                 using (Pen pen = new Pen(themeColors[i % themeColors.Length], 1))
@@ -430,23 +685,21 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawNeon(Graphics g)
         {
-            // Efectos de neón usando líneas con resplandor matemático
             for (int i = 0; i < themeColors.Length; i++)
             {
                 Color neonColor = themeColors[i];
-                
-                // Calcular intensidad parpadeante usando función seno
                 float intensity = 0.5f + 0.5f * (float)Math.Sin(animationFrame * 0.1f + i);
+                // boost neon glow with beat
+                intensity += beatIntensity * 0.8f;
+                intensity = Math.Min(1f, intensity);
                 Color glowColor = Color.FromArgb((int)(255 * intensity), neonColor);
                 
-                // Dibujar líneas horizontales de neón
                 int y = 80 + i * 70;
                 using (Pen pen = new Pen(glowColor, 3))
                 {
                     g.DrawLine(pen, 100, y, panelVisualization.Width - 100, y);
                 }
                 
-                // Efecto de resplandor dibujando líneas paralelas con transparencia
                 for (int glow = 1; glow <= 5; glow++)
                 {
                     Color resplandor = Color.FromArgb((int)(50 * intensity / glow), neonColor);
@@ -458,29 +711,27 @@ namespace Reproductor_Proyecto_P1
                 }
             }
             
-            // Círculos de neón pulsantes dibujados con líneas
             PointF center = new PointF(panelVisualization.Width / 2, panelVisualization.Height / 2);
             for (int ring = 0; ring < 4; ring++)
             {
                 float baseRadius = 60 + ring * 35;
                 float pulsation = 10 * (float)Math.Sin(animationFrame * 0.08f + ring);
-                float radius = baseRadius + pulsation;
+                float radius = baseRadius + pulsation + beatIntensity * 15f;
                 
                 Color neonColor = themeColors[ring % themeColors.Length];
                 using (Pen pen = new Pen(neonColor, 2))
                 {
-                    // Dibujar círculo usando líneas (aproximación poligonal de alta resolución)
-                    int segments = 36;  // Más segmentos para círculo más suave
+                    int segments = 36;  
                     for (int seg = 0; seg < segments; seg++)
                     {
                         float angle1 = (2 * (float)Math.PI * seg) / segments;
                         float angle2 = (2 * (float)Math.PI * (seg + 1)) / segments;
-                        
+
                         float x1 = center.X + radius * (float)Math.Cos(angle1);
                         float y1 = center.Y + radius * (float)Math.Sin(angle1);
                         float x2 = center.X + radius * (float)Math.Cos(angle2);
                         float y2 = center.Y + radius * (float)Math.Sin(angle2);
-                        
+
                         g.DrawLine(pen, x1, y1, x2, y2);
                     }
                 }
@@ -493,6 +744,10 @@ namespace Reproductor_Proyecto_P1
             // Valor más alto = animación más rápida (menor intervalo)
             int newInterval = Math.Max(10, 110 - trackBarSpeed.Value); // Asegurar mínimo de 10ms
             timerAnimation.Interval = newInterval;
+            // marcar modo manual para que el espectro siga más rápido
+            manualSpeedActive = true;
+            manualSpeedTimer.Stop();
+            manualSpeedTimer.Start();
             if (autoChangeThemes)
             {
                 // reinicia el tiempo para que el segundo siguiente sea exacto
@@ -577,6 +832,9 @@ namespace Reproductor_Proyecto_P1
                 lblProgress.Text = "Manual";
             }
         }
+
+        // simple lerp helper
+        private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     }
 }
 
