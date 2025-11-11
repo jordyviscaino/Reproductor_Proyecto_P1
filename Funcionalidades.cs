@@ -6,54 +6,49 @@ using System.Threading;
 
 namespace Reproductor_Proyecto_P1
 {
-    // Enum público para tipos de onset (grave/medio/agudo)
+   
     public enum OnsetType { Low, Mid, High }
 
-    // Clase vacía de soporte (no usada) - se deja para extensiones
+ 
     internal class Funcionalidades
     {
     }
 
-    // AudioAnalyzer: carga WAV PCM 16-bit a memoria y calcula espectro usando FFT (sin librerías externas)
-    // Incluye detección de golpes (beat) basada en la energía de las bandas graves y spectral flux.
+  
     internal class AudioAnalyzer : IDisposable
     {
-        private int fftSize = 2048; // potencia de 2 (tamaño de la ventana)
-        private int hopSize; // solapamiento (no usado en la versión actual)
-        private int bands = 64; // número de bandas para la visualización
-        private float[] window; // ventana Hann
-        private float[] smoothBands; // bandas suavizadas para la UI
+        private int fftSize = 2048; 
+        private int hopSize; 
+        private int bands = 64; 
+        private float[] window; 
+        private float[] smoothBands; 
 
         // Muestras cargadas (mono)
         private float[] samplesMono;
         private int sampleRate;
         private int channels;
 
-        // estado para spectral flux
         private float[] prevMags;
         private float fluxAvg = 0f;
         private float fluxAvgLow = 0f, fluxAvgMid = 0f, fluxAvgHigh = 0f;
 
         // Detección de beat
-        public event Action BeatDetected; // backward compatibility
-        public event Action<OnsetType> OnsetDetected; // more specific
+        public event Action BeatDetected;
+        public event Action<OnsetType> OnsetDetected;
 
-        private float lowEnergyAvg = 0f; // energía promedio de fondo (bandas bajas)
-        private float energyDecay = 0.04f; // velocidad de adaptación de la media (más alto = más rápido)
-        private float baseBeatMultiplier = 1.6f; // multiplicador base para umbral (energía)
-        private int beatCooldownMs = 200; // tiempo mínimo entre beats en ms
+        private float lowEnergyAvg = 0f; 
+        private float energyDecay = 0.04f; 
+        private float baseBeatMultiplier = 1.6f; 
+        private int beatCooldownMs = 200; 
         private DateTime lastBeat = DateTime.MinValue;
-        private int lowBandCount = 8; // cuántas bandas bajas se promedian para detectar golpe
+        private int lowBandCount = 8; 
 
-        // spectral flux params
-        private float fluxDecay = 0.08f; // promedio móvil para flux
-        private float fluxMultiplier = 1.8f; // umbral multiplicador para flux
+        private float fluxDecay = 0.08f; 
+        private float fluxMultiplier = 1.8f; 
 
-        // smoothing attack/release para bandas
         private float attackAlpha = 0.75f;
         private float releaseAlpha = 0.12f;
 
-        // region-specific cooldowns
         private DateTime lastOnsetLow = DateTime.MinValue, lastOnsetMid = DateTime.MinValue, lastOnsetHigh = DateTime.MinValue;
 
         public AudioAnalyzer(int fftSize = 2048, int bands = 64)
@@ -64,11 +59,9 @@ namespace Reproductor_Proyecto_P1
             window = CreateHannWindow(fftSize);
             smoothBands = new float[bands];
 
-            // aplicar preset por defecto equilibrado
             ApplyPreset(GenrePreset.Pop);
         }
 
-        // Presets de género para ajustar la detección automáticamente
         public enum GenrePreset
         {
             Electronica,
@@ -79,15 +72,14 @@ namespace Reproductor_Proyecto_P1
             Custom
         }
 
-        // Aplica un preset ajustando parámetros de detección para diferentes géneros
         public void ApplyPreset(GenrePreset preset)
         {
             switch (preset)
             {
                 case GenrePreset.Electronica:
-                    energyDecay = 0.06f;      // se adapta rápido
-                    baseBeatMultiplier = 1.45f; // sensitivo
-                    lowBandCount = 6;         // centrado en sub/bass
+                    energyDecay = 0.06f;     
+                    baseBeatMultiplier = 1.45f; 
+                    lowBandCount = 6;         
                     beatCooldownMs = 140;
                     fluxDecay = 0.1f;
                     fluxMultiplier = 1.6f;
@@ -105,8 +97,8 @@ namespace Reproductor_Proyecto_P1
                     releaseAlpha = 0.12f;
                     break;
                 case GenrePreset.Rock:
-                    energyDecay = 0.03f;     // más estable (más dinámica)
-                    baseBeatMultiplier = 1.9f; // menos sensible a ruidos
+                    energyDecay = 0.03f;     
+                    baseBeatMultiplier = 1.9f; 
                     lowBandCount = 10;
                     beatCooldownMs = 200;
                     fluxDecay = 0.06f;
@@ -115,8 +107,8 @@ namespace Reproductor_Proyecto_P1
                     releaseAlpha = 0.14f;
                     break;
                 case GenrePreset.Acustico:
-                    energyDecay = 0.02f;     // muy estable
-                    baseBeatMultiplier = 1.35f; // más sensible a golpes suaves
+                    energyDecay = 0.02f;   
+                    baseBeatMultiplier = 1.35f; 
                     lowBandCount = 5;
                     beatCooldownMs = 220;
                     fluxDecay = 0.06f;
@@ -136,15 +128,15 @@ namespace Reproductor_Proyecto_P1
                     break;
                 case GenrePreset.Custom:
                 default:
-                    // Mantiene valores actuales
+             
                     break;
             }
         }
 
-        // Indica si hay muestras cargadas
+        
         public bool HasSamples => samplesMono != null && samplesMono.Length > 0 && sampleRate > 0;
 
-        // Carga entero WAV PCM 16-bit a memoria y lo pasa a mono (promedio de canales)
+        
         public bool LoadWav(string wavPath)
         {
             try
@@ -154,7 +146,7 @@ namespace Reproductor_Proyecto_P1
                 {
                     string riff = new string(br.ReadChars(4));
                     if (riff != "RIFF") return false;
-                    br.ReadInt32(); // tamaño
+                    br.ReadInt32(); 
                     string wave = new string(br.ReadChars(4));
                     if (wave != "WAVE") return false;
 
@@ -174,8 +166,8 @@ namespace Reproductor_Proyecto_P1
                             audioFormat = br.ReadInt16();
                             channels = br.ReadInt16();
                             sampleRate = br.ReadInt32();
-                            br.ReadInt32(); // byteRate
-                            br.ReadInt16(); // blockAlign
+                            br.ReadInt32(); 
+                            br.ReadInt16();
                             bitsPerSample = br.ReadInt16();
                             if (chunkSize > 16)
                                 br.ReadBytes(chunkSize - 16);
@@ -193,8 +185,8 @@ namespace Reproductor_Proyecto_P1
                     }
 
                     if (dataChunkPos < 0) return false;
-                    if (audioFormat != 1) return false; // sólo PCM
-                    if (bitsPerSample != 16) return false; // sólo 16-bit soportado
+                    if (audioFormat != 1) return false; 
+                    if (bitsPerSample != 16) return false;
 
                     fs.Position = dataChunkPos;
 
@@ -214,7 +206,6 @@ namespace Reproductor_Proyecto_P1
                         samplesMono[i] = accum / (float)channels / 32768f;
                     }
 
-                    // reiniciar estado de visualización y detección
                     smoothBands = new float[bands];
                     lowEnergyAvg = 0f;
                     lastBeat = DateTime.MinValue;
@@ -231,8 +222,7 @@ namespace Reproductor_Proyecto_P1
             }
         }
 
-        // Calcula las bandas para una posición de reproducción dada (en segundos)
-        // Devuelve un arreglo de 'bands' valores listos para la visualización.
+  
         public float[] GetBandsAtPosition(double posSeconds)
         {
             if (!HasSamples) return null;
@@ -247,15 +237,13 @@ namespace Reproductor_Proyecto_P1
                 if (idx >= 0 && idx < samplesMono.Length) v = samplesMono[idx];
                 frame[i] = v * window[i];
             }
-            var mags = ComputeMagnitudes(frame); // length = N/2
-
-            // calcular spectral flux en bandas bajas/medias/altas
+            var mags = ComputeMagnitudes(frame);
             int len = mags.Length;
             if (prevMags == null || prevMags.Length != mags.Length) prevMags = new float[mags.Length];
 
             // Determine bin limits for bands
-            int binLowLimit = Math.Max(1, (int)(150 * fftSize / (float)sampleRate));   // <150Hz
-            int binMidLimit = Math.Max(binLowLimit+1, (int)(2000 * fftSize / (float)sampleRate)); // <2000Hz
+            int binLowLimit = Math.Max(1, (int)(150 * fftSize / (float)sampleRate));  
+            int binMidLimit = Math.Max(binLowLimit+1, (int)(2000 * fftSize / (float)sampleRate));
             if (binMidLimit >= len) binMidLimit = len-1;
 
             float fluxLow = 0f, fluxMid = 0f, fluxHigh = 0f;
@@ -270,7 +258,6 @@ namespace Reproductor_Proyecto_P1
 
             Array.Copy(mags, prevMags, mags.Length);
 
-            // actualizar medias móviles de flux por región
             fluxAvgLow = (1 - fluxDecay) * fluxAvgLow + fluxDecay * fluxLow;
             fluxAvgMid = (1 - fluxDecay) * fluxAvgMid + fluxDecay * fluxMid;
             fluxAvgHigh = (1 - fluxDecay) * fluxAvgHigh + fluxDecay * fluxHigh;
@@ -290,22 +277,17 @@ namespace Reproductor_Proyecto_P1
                 onsetHigh = true; lastOnsetHigh = nowTime;
             }
 
-            // Agrupar magnitudes en bandas logarítmicas
             var bandVals = GroupBandsLog(mags, bands);
 
-            // Detección de beat basada en la energía de las bandas bajas (complementaria)
             float lowEnergy = 0f;
             int count = Math.Min(lowBandCount, bandVals.Length);
             for (int i = 0; i < count; i++) lowEnergy += bandVals[i];
-            lowEnergy /= count; // energía media en bandas graves
+            lowEnergy /= count; 
 
-            // inicializar la media si es la primera vez
             if (lowEnergyAvg <= 0) lowEnergyAvg = lowEnergy;
 
-            // media móvil exponencial para energía de fondo
             lowEnergyAvg = (1 - energyDecay) * lowEnergyAvg + energyDecay * lowEnergy;
 
-            // multiplicador adaptativo: hacer más sensible si la energía es baja, menos si muy alta
             float levelFactor = 1.0f;
             levelFactor = 1.0f - Math.Min(0.45f, lowEnergyAvg / 120f);
             float effectiveMultiplier = baseBeatMultiplier * levelFactor;
@@ -316,7 +298,6 @@ namespace Reproductor_Proyecto_P1
                 energyBeat = true; lastBeat = nowTime;
             }
 
-            // disparar eventos por región
             if (onsetLow)
             {
                 try { OnsetDetected?.Invoke(OnsetType.Low); } catch { }
@@ -335,7 +316,6 @@ namespace Reproductor_Proyecto_P1
                 try { BeatDetected?.Invoke(); } catch { }
             }
 
-            // suavizado asimétrico (attack/release) para visualización
             for (int i = 0; i < bands; i++)
             {
                 float newVal = bandVals[i];
@@ -347,7 +327,6 @@ namespace Reproductor_Proyecto_P1
             return (float[])smoothBands.Clone();
         }
 
-        // Crea ventana Hann de tamaño N
         private float[] CreateHannWindow(int N)
         {
             var w = new float[N];
@@ -356,7 +335,6 @@ namespace Reproductor_Proyecto_P1
             return w;
         }
 
-        // Calcula magnitudes a partir de muestras aplicando FFT
         private float[] ComputeMagnitudes(float[] samples)
         {
             int N = fftSize;
@@ -376,13 +354,12 @@ namespace Reproductor_Proyecto_P1
             return mags;
         }
 
-        // Agrupa bins en bandas logarítmicas
         private float[] GroupBandsLog(float[] mags, int bands)
         {
-            int len = mags.Length; // bins from 0..N/2-1
+            int len = mags.Length; 
             var result = new float[bands];
-            double fmin = 20.0; // Hz
-            double fmax = sampleRate / 2.0; // Nyquist
+            double fmin = 20.0; 
+            double fmax = sampleRate / 2.0;
             if (fmin <= 0) fmin = 20.0;
 
             for (int b = 0; b < bands; b++)
@@ -405,12 +382,10 @@ namespace Reproductor_Proyecto_P1
             return result;
         }
 
-        // Implementación iterativa in-place de Cooley-Tukey (radix-2)
         private void FFT(Complex[] buffer, bool inverse)
         {
             int n = buffer.Length;
             int bits = (int)Math.Log(n, 2);
-            // reordenamiento por bits
             for (int j = 1, i = 0; j < n; j++)
             {
                 int bit = n >> 1;
@@ -444,18 +419,13 @@ namespace Reproductor_Proyecto_P1
             }
         }
 
-        // Métodos vacíos por compatibilidad
         public void Stop()
         {
-            // nada que detener en este modo
         }
 
         public void Dispose()
         {
-            // nada especial
         }
-
-        // Exponer algunos parámetros para afinación desde UI si se desea
         public float EnergyDecay { get => energyDecay; set => energyDecay = ClampF(value, 0.001f, 0.5f); }
         public float BaseBeatMultiplier { get => baseBeatMultiplier; set => baseBeatMultiplier = Math.Max(1.05f, value); }
         public int LowBandCount { get => lowBandCount; set => lowBandCount = Math.Max(1, value); }

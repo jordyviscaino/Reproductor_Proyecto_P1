@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using NAudio.Wave;
 
 namespace Reproductor_Proyecto_P1
 {
@@ -15,15 +16,17 @@ namespace Reproductor_Proyecto_P1
     {
         private Form2 visualizationForm = null;
         private AudioAnalyzer audioAnalyzer;
-        private bool currentFileIsWav = false;
+        private bool currentFileIsAnalyzable = false;
         private Stopwatch vizStopwatch = new Stopwatch();
         private bool beatSubscribed = false;
         private bool onsetSubscribed = false;
+        private string tempWavPath = null;
 
         public ReproductorPr()
         {
             InitializeComponent();
-            audioAnalyzer = new AudioAnalyzer();
+
+            audioAnalyzer = new AudioAnalyzer(2048, 8);
             this.FormClosing += ReproductorPr_FormClosing;
             vizStopwatch.Start();
         }
@@ -42,6 +45,22 @@ namespace Reproductor_Proyecto_P1
             }
             audioAnalyzer?.Dispose();
         }
+        private void CleanupTempFile()
+        {
+            if (tempWavPath != null && System.IO.File.Exists(tempWavPath))
+            {
+                try
+                {
+                    System.IO.File.Delete(tempWavPath);
+                    tempWavPath = null;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Error deleting temp file: " + ex.Message);
+                }
+            }
+        }
+
 
         private void OnBeatDetected()
         {
@@ -114,8 +133,7 @@ namespace Reproductor_Proyecto_P1
         {
             try
             {
-                // unsubscribe previous beat/ onset handlers if any
-                if (audioAnalyzer != null && beatSubscribed)
+                if (audioAnalyzer != null && beatSubscribed)
                 {
                     audioAnalyzer.BeatDetected -= OnBeatDetected;
                     beatSubscribed = false;
@@ -126,30 +144,58 @@ namespace Reproductor_Proyecto_P1
                     onsetSubscribed = false;
                 }
 
+                CleanupTempFile();
+
                 MediaPlayer.URL = @"" + ruta;
                 timer1.Start();
 
-                // If WAV, load samples into analyzer for position-based FFT
-                if (System.IO.Path.GetExtension(ruta).ToLowerInvariant() == ".wav")
+
+                string fileToLoad = ruta;
+                bool isSupportedFormat = false;
+                string extension = System.IO.Path.GetExtension(ruta).ToLowerInvariant();
+
+                if (extension == ".wav")
                 {
-                    bool loaded = audioAnalyzer.LoadWav(ruta);
-                    currentFileIsWav = loaded;
+                    fileToLoad = ruta;
+                    isSupportedFormat = true;
+                }
+                else if (extension == ".mp3")
+                {
+                    try
+                    {
+                        tempWavPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "temp_decoded.wav");
+
+                        using (var reader = new NAudio.Wave.Mp3FileReader(ruta))
+                        {
+                            NAudio.Wave.WaveFileWriter.CreateWaveFile(tempWavPath, reader);
+                        }
+                        fileToLoad = tempWavPath; 
+                        isSupportedFormat = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("Fallo al decodificar MP3: " + ex.Message);
+                        isSupportedFormat = false;
+                    }
+                }
+
+                if (isSupportedFormat)
+                {
+                    bool loaded = audioAnalyzer.LoadWav(fileToLoad); 
+                    currentFileIsAnalyzable = loaded;
                     if (!loaded)
                     {
-                        // failed to load as WAV; ensure analyzer not used
-                        currentFileIsWav = false;
+                        currentFileIsAnalyzable = false;
                     }
                     else
                     {
-                        // ensure visualization form exists so triggers have effect
-                        if (visualizationForm == null || visualizationForm.IsDisposed)
+                        if (visualizationForm == null || visualizationForm.IsDisposed)
                         {
                             visualizationForm = new Form2();
                             visualizationForm.Show();
                         }
 
-                        // subscribe to beat events
-                        if (!beatSubscribed)
+                        if (!beatSubscribed)
                         {
                             audioAnalyzer.BeatDetected += OnBeatDetected;
                             beatSubscribed = true;
@@ -159,17 +205,14 @@ namespace Reproductor_Proyecto_P1
                             audioAnalyzer.OnsetDetected += OnOnsetDetected;
                             onsetSubscribed = true;
                         }
-
-                        // restart visualization timer
                         vizStopwatch.Restart();
                     }
                 }
                 else
                 {
-                    // unsupported format for analyzer
-                    currentFileIsWav = false;
+                    currentFileIsAnalyzable = false;
                 }
-            }
+            }
             catch (Exception ex)
             {
                 MessageBox.Show("Error al cargar el archivo de audio: " + ex.Message);
@@ -214,20 +257,42 @@ namespace Reproductor_Proyecto_P1
         private void timer1_Tick(object sender, EventArgs e)
         {
             ProgesoTrackBar();
-            mtrackDuracion.Value = (int)MediaPlayer.Ctlcontrols.currentPosition;
+
+            if (MediaPlayer.currentMedia != null)
+            {
+                int dur = (int)MediaPlayer.currentMedia.duration;
+                if (dur > mtrackDuracion.Maximum)
+                    mtrackDuracion.Maximum = Math.Max(dur, mtrackDuracion.Maximum);
+
+                int pos = (int)MediaPlayer.Ctlcontrols.currentPosition;
+                if (pos < mtrackDuracion.Minimum) pos = mtrackDuracion.Minimum;
+                if (pos > mtrackDuracion.Maximum) pos = mtrackDuracion.Maximum;
+
+                try
+                {
+                    mtrackDuracion.Value = pos;
+                }
+                catch
+                {
+                    mtrackDuracion.Value = Math.Clamp(pos, mtrackDuracion.Minimum, mtrackDuracion.Maximum);
+                }
+            }
+
             trackBarVolumen.Value = MediaPlayer.settings.volume;
-            txtDuracion.Text = MediaPlayer.currentMedia.durationString;
+            if (MediaPlayer.currentMedia != null)
+            {
+                txtDuracion.Text = MediaPlayer.currentMedia.durationString;
+            }
             txtTranscurrido.Text = MediaPlayer.Ctlcontrols.currentPositionString;
 
-            // Poll analyzer position ~40Hz to compute spectrum synchronized to playback position
-            if (currentFileIsWav && visualizationForm != null && !visualizationForm.IsDisposed)
+            if (currentFileIsAnalyzable && visualizationForm != null && !visualizationForm.IsDisposed)
             {
                 if (MediaPlayer.playState == WMPLib.WMPPlayState.wmppsPlaying || MediaPlayer.playState == WMPLib.WMPPlayState.wmppsPaused)
                 {
                     if (vizStopwatch.ElapsedMilliseconds >= 25) // ~40 fps
                     {
-                        double pos = MediaPlayer.Ctlcontrols.currentPosition;
-                        var bands = audioAnalyzer.GetBandsAtPosition(pos);
+                        double posd = MediaPlayer.Ctlcontrols.currentPosition;
+                        var bands = audioAnalyzer.GetBandsAtPosition(posd);
                         if (bands != null)
                         {
                             try
@@ -316,7 +381,6 @@ namespace Reproductor_Proyecto_P1
             audioAnalyzer.Stop();
         }
 
-        // Método para abrir la ventana de visualización
         public void OpenVisualization()
         {
             if (visualizationForm == null || visualizationForm.IsDisposed)

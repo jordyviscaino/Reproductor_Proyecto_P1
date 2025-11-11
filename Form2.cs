@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
-using System.Diagnostics; // agregado para Stopwatch
+using System.Diagnostics; 
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
@@ -17,18 +17,15 @@ namespace Reproductor_Proyecto_P1
         private Random random = new Random();
         private int animationFrame = 0;
         private int currentTheme = 0;
-        // spectrum source (target) and working values
         private float[] spectrumBars;
         private float[] targetSpectrum;
-        // visual smoothing per-bar for the new AudioMeter effect
         private float[] smoothedBars;
         private float[] peakHold;
-        private int[] peakHoldTimer; // ms
+        private int[] peakHoldTimer; 
 
         private PointF[] particles;
         private float[] particleVelocities;
         private Color[] themeColors;
-        // Added AudioMeter as an extra effect
         private string[] themeNames = { "Espectro", "Ondas", "Partículas", "Psicodélico", "Neón" };
         private bool isFullscreen = false;
         private FormWindowState previousWindowState;
@@ -36,36 +33,29 @@ namespace Reproductor_Proyecto_P1
         private Size previousSize;
         private Point previousLocation;
 
-        // Variables para cambio automático de temas
         private bool autoChangeThemes = true;
-        private const int ThemeDurationSeconds = 10; // duración exacta por tema
-        private Stopwatch themeStopwatch; //  conteo por ticks
+        private const int ThemeDurationSeconds = 10; 
+        private Stopwatch themeStopwatch; 
 
-        // Beat reaction
-        private float beatIntensity = 0f; // 0..1
-        private const float beatDecayPerTick = 0.08f; // decay per animation tick
+        private float beatIntensity = 0f; 
+        private const float beatDecayPerTick = 0.08f; 
 
-        // Track last time live spectrum was updated to avoid overwriting it with random data
         private DateTime lastSpectrumUpdate = DateTime.MinValue;
-        private int spectrumHoldMs = 120; // tiempo en ms para considerar datos como recientes (reducido)
-        private bool liveReceived = false; // recibimos datos en vivo
-        private bool firstLiveHandled = false; // evitar saltos iniciales
-        private bool manualSpeedActive = false; // usuario ajustó velocidad manualmente
+        private int spectrumHoldMs = 120; 
+        private bool liveReceived = false; 
+        private bool firstLiveHandled = false; 
+        private bool manualSpeedActive = false; 
         private System.Windows.Forms.Timer manualSpeedTimer;
 
-        // Onset reaction state
         private float onsetLowPulse = 0f;
         private float onsetMidPulse = 0f;
         private float onsetHighPulse = 0f;
 
-        // AudioMeter parameters (per-bar independent behavior)
-        private const float MeterAttack = 0.6f;   // rapidez de subida (0..1)
-        private const float MeterRelease = 0.12f; // rapidez de bajada (0..1)
-        private const int PeakHoldMs = 300;       // tiempo que mantiene pico
-        private float maxBarHeightFactor = 1.0f;  // escala máxima relativa (1.0 = full height)
-
-        // reference magnitude for mapping input magnitudes to display range
-        private float referenceMagnitude = 60f; // adjust depending on analyzer output
+        private const float MeterAttack = 0.6f;  
+        private const float MeterRelease = 0.12f; 
+        private const int PeakHoldMs = 300;     
+        private float maxBarHeightFactor = 1.0f;  
+        private float referenceMagnitude = 60f; 
 
         public Form2()
         {
@@ -75,16 +65,14 @@ namespace Reproductor_Proyecto_P1
 
         private void InitializeVisualization()
         {
-            // Inicializar barras de espectro
-            spectrumBars = new float[64];
-            targetSpectrum = new float[64];
-            smoothedBars = new float[64];
-            peakHold = new float[64];
-            peakHoldTimer = new int[64];
+            int displayBands = 8;
+            spectrumBars = new float[displayBands];
+            targetSpectrum = new float[displayBands];
+            smoothedBars = new float[displayBands];
+            peakHold = new float[displayBands];
+            peakHoldTimer = new int[displayBands];
             for (int i = 0; i < spectrumBars.Length; i++)
-                spectrumBars[i] = random.Next(10, 100);
-
-            // Inicializar partículas
+                spectrumBars[i] = 10f;
             particles = new PointF[100];
             particleVelocities = new float[particles.Length];
             for (int i = 0; i < particles.Length; i++)
@@ -93,12 +81,10 @@ namespace Reproductor_Proyecto_P1
                                         random.Next(Math.Max(1, panelVisualization.Height)));
                 particleVelocities[i] = (float)(random.NextDouble() * 5 + 1);
             }
-            // Inicializar colores del tema actual
             UpdateThemeColors();
 
-            // Timer para detectar actividad manual en control de velocidad
             manualSpeedTimer = new System.Windows.Forms.Timer();
-            manualSpeedTimer.Interval = 2000; // 2s de inactividad -> salir modo manual
+            manualSpeedTimer.Interval = 2000;
             manualSpeedTimer.Tick += (s, e) => { manualSpeedActive = false; manualSpeedTimer.Stop(); };
         }
 
@@ -106,29 +92,29 @@ namespace Reproductor_Proyecto_P1
         {
             switch (currentTheme)
             {
-                case 0: // Espectro
+                case 0:
                     themeColors = new Color[] {
                         Color.Red, Color.Orange, Color.Yellow, Color.Green,
                         Color.Blue, Color.Indigo, Color.Violet
                     };
                     break;
-                case 1: // Ondas
+                case 1: 
                     themeColors = new Color[] {
                         Color.DeepSkyBlue, Color.Cyan, Color.Aqua, Color.Teal
                     };
                     break;
-                case 2: // Partículas
+                case 2:
                     themeColors = new Color[] {
                         Color.Gold, Color.Orange, Color.OrangeRed, Color.Red
                     };
                     break;
-                case 3: // Psicodélico
+                case 3: 
                     themeColors = new Color[] {
                         Color.Magenta, Color.Lime, Color.Cyan, Color.Yellow,
                         Color.HotPink, Color.Purple, Color.SpringGreen
                     };
                     break;
-                case 4: // Neón 
+                case 4: 
                     themeColors = new Color[] {
                         Color.Lime, Color.Cyan, Color.Magenta, Color.Yellow, Color.White
                     };
@@ -145,7 +131,6 @@ namespace Reproductor_Proyecto_P1
                          ControlStyles.UserPaint |
                          ControlStyles.DoubleBuffer |
                          ControlStyles.ResizeRedraw, true);
-            // Inicializar el checkbox
             chkAutoChange.Checked = autoChangeThemes;
             lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
             themeStopwatch = Stopwatch.StartNew();
@@ -162,7 +147,6 @@ namespace Reproductor_Proyecto_P1
                 double elapsed = themeStopwatch.Elapsed.TotalSeconds;
                 int remaining = Math.Max(0, ThemeDurationSeconds - (int)Math.Floor(elapsed));
 
-                // mostrar cuenta regresiva exacta 10 -> 1
                 if (remaining > 0)
                     lblProgress.Text = $"Próximo: {remaining}s";
                 else
@@ -183,19 +167,16 @@ namespace Reproductor_Proyecto_P1
                 }
             }
 
-            // Decay beat intensity
             if (beatIntensity > 0f)
             {
                 beatIntensity -= beatDecayPerTick;
                 if (beatIntensity < 0f) beatIntensity = 0f;
             }
 
-            // Decay onset pulses
             onsetLowPulse = Math.Max(0f, onsetLowPulse - 0.08f);
             onsetMidPulse = Math.Max(0f, onsetMidPulse - 0.06f);
             onsetHighPulse = Math.Max(0f, onsetHighPulse - 0.05f);
 
-            // Only randomize spectrum if we haven't received live spectrum recently
             bool haveRecentSpectrum = (DateTime.UtcNow - lastSpectrumUpdate).TotalMilliseconds < spectrumHoldMs;
             if (!haveRecentSpectrum)
             {
@@ -207,16 +188,14 @@ namespace Reproductor_Proyecto_P1
 
                 for (int i = 0; i < spectrumBars.Length; i++)
                 {
-                    // solo modificar cuando no hay input real
                     float change = (float)(random.NextDouble() - 0.5) * 20;
                     spectrumBars[i] = Math.Max(10, Math.Min(200, spectrumBars[i] + change));
                 }
             }
 
-            // Si recibimos espectro en vivo, acercamos spectrumBars a targetSpectrum suavemente
             if (liveReceived && targetSpectrum != null && spectrumBars != null && targetSpectrum.Length == spectrumBars.Length)
             {
-                float lerp = manualSpeedActive ? 0.75f : 0.25f; // más rápido si el usuario puso velocidad manual
+                float lerp = manualSpeedActive ? 0.75f : 0.25f;
                 for (int i = 0; i < spectrumBars.Length; i++)
                 {
                     spectrumBars[i] = Lerp(spectrumBars[i], targetSpectrum[i], lerp);
@@ -230,7 +209,6 @@ namespace Reproductor_Proyecto_P1
                     particles[i].X + particleVelocities[i] * speedMod * (float)Math.Sin(animationFrame * 0.1 + i),
                     particles[i].Y + particleVelocities[i] * speedMod * (float)Math.Cos(animationFrame * 0.1 + i)
                 );
-                // Reciclar partículas que salen de los límites
                 if (particles[i].X < 0 || particles[i].X > panelVisualization.Width ||
                     particles[i].Y < 0 || particles[i].Y > panelVisualization.Height)
                 {
@@ -249,24 +227,20 @@ namespace Reproductor_Proyecto_P1
             currentTheme = (currentTheme + 1) % themeNames.Length;
             lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Auto)";
             UpdateThemeColors();
-            // Efecto visual de transición
             FlashTransition();
         }
 
         private void btnChangeTheme_Click(object sender, EventArgs e)
         {
-            // Cambiar tema inmediatamente
             currentTheme = (currentTheme + 1) % themeNames.Length;
             UpdateThemeColors();
 
-            // Si estaba en automático, cambiar temporalmente a manual
             if (autoChangeThemes)
             {
                 autoChangeThemes = false;
                 chkAutoChange.Checked = false;
                 lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
                 if (themeStopwatch != null) { themeStopwatch.Stop(); themeStopwatch = null; }
-                // Programar regreso al modo automático (SIN Task.Delay problemático)
                 System.Windows.Forms.Timer tempTimer = new System.Windows.Forms.Timer();
                 tempTimer.Interval = 30000; // 30 segundos
                 tempTimer.Tick += (s, args) =>
@@ -288,18 +262,15 @@ namespace Reproductor_Proyecto_P1
                 lblTheme.Text = "Tema: " + themeNames[currentTheme] + " (Manual)";
             }
 
-            // Efecto visual
             FlashTransition();
         }
 
         private void FlashTransition()
         {
-            // Efecto de transición simple sin Task.Delay problemático
             if (themeColors != null && themeColors.Length > 0)
             {
                 panelVisualization.BackColor = themeColors[0];
 
-                // Usar Timer para restaurar el color de fondo
                 System.Windows.Forms.Timer flashTimer = new System.Windows.Forms.Timer();
                 flashTimer.Interval = 150;
                 flashTimer.Tick += (s, args) =>
@@ -315,12 +286,9 @@ namespace Reproductor_Proyecto_P1
             }
         }
 
-        // Public method to be called when a beat is detected
         public void TriggerBeat()
         {
-            // Reacciona en todas las formas: aumenta intención del beat
             beatIntensity = Math.Min(1f, beatIntensity + 0.9f);
-            // pequeña flash visual
             panelVisualization.BackColor = Color.FromArgb(20, Color.White);
             System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
             t.Interval = 80;
@@ -333,14 +301,12 @@ namespace Reproductor_Proyecto_P1
             t.Start();
         }
 
-        // Trigger onset with region type
         public void TriggerOnset(OnsetType type)
         {
             switch (type)
             {
                 case OnsetType.Low:
                     onsetLowPulse = 1.0f;
-                    // stronger flash in warm color
                     panelVisualization.BackColor = Color.FromArgb(30, Color.OrangeRed);
                     break;
                 case OnsetType.Mid:
@@ -365,28 +331,28 @@ namespace Reproductor_Proyecto_P1
             t.Start();
         }
 
-        // Método público para recibir espectro desde Form1
         public void UpdateSpectrum(float[] bands)
         {
             if (bands == null || bands.Length == 0) return;
 
-            // desired output band count (display bars)
-            int outputBands = spectrumBars != null && spectrumBars.Length > 0 ? spectrumBars.Length : 64;
+            int outputBands = 8;
+            if (targetSpectrum == null || targetSpectrum.Length != outputBands) targetSpectrum = new float[outputBands];
+            if (smoothedBars == null || smoothedBars.Length != outputBands) smoothedBars = new float[outputBands];
+            if (peakHold == null || peakHold.Length != outputBands) { peakHold = new float[outputBands]; peakHoldTimer = new int[outputBands]; }
+            if (spectrumBars == null || spectrumBars.Length != outputBands) spectrumBars = new float[outputBands];
 
-            // ensure target/smoothing arrays sized to outputBands
-            if (targetSpectrum == null || targetSpectrum.Length != outputBands)
-            {
-                targetSpectrum = new float[outputBands];
-            }
-            if (smoothedBars == null || smoothedBars.Length != outputBands)
-                smoothedBars = new float[outputBands];
-            if (peakHold == null || peakHold.Length != outputBands)
-            {
-                peakHold = new float[outputBands];
-                peakHoldTimer = new int[outputBands];
-            }
-            if (spectrumBars == null || spectrumBars.Length != outputBands)
-                spectrumBars = new float[outputBands];
+            int panelHeight = Math.Max(1, panelVisualization.ClientSize.Height);
+
+            float[] bandMaxFactor = new float[] { 1.0f, 0.95f, 0.9f, 0.85f, 0.75f, 0.65f, 0.55f, 0.45f };
+
+            float[] bandScale = new float[] { 0.40f, 0.55f, 0.75f, 0.9f, 1.0f, 1.05f, 1.1f, 1.15f };
+
+            float[] bandThreshold = new float[] { 18f, 14f, 10f, 7f, 4f, 2f, 1f, 0f };
+
+            const float dbMin = 0f;
+            const float dbMax = 90f;
+            const float shapingExponent = 0.6f;
+            const float minPx = 6f;
 
             int inputBins = bands.Length;
 
@@ -394,13 +360,27 @@ namespace Reproductor_Proyecto_P1
             {
                 for (int i = 0; i < outputBands; i++)
                 {
-                    float mapped = 10f + (bands[i] / referenceMagnitude) * 190f;
-                    targetSpectrum[i] = Math.Clamp(mapped, 10f, 200f);
+                    float db = bands[i];
+                    if (db <= bandThreshold[i])
+                    {
+                        targetSpectrum[i] = minPx;
+                        continue;
+                    }
+
+                    float denom = Math.Max(1e-6f, dbMax - bandThreshold[i]);
+                    float norm = (db - bandThreshold[i]) / denom;
+                    norm = Math.Clamp(norm, 0f, 1f);
+
+                    float shaped = (float)Math.Pow(norm, shapingExponent);
+
+                    float maxPx = Math.Max(minPx, panelHeight * bandMaxFactor[i] * bandScale[i]);
+                    float mapped = minPx + shaped * (maxPx - minPx);
+
+                    targetSpectrum[i] = Math.Clamp(mapped, minPx, panelHeight);
                 }
             }
             else
             {
-                // logarithmic grouping: geometric partition of input bins into output bands
                 for (int b = 0; b < outputBands; b++)
                 {
                     double startF = Math.Pow((double)inputBins, (double)b / outputBands);
@@ -412,19 +392,21 @@ namespace Reproductor_Proyecto_P1
 
                     float sum = 0f;
                     int count = 0;
-                    for (int k = start; k <= end; k++)
-                    {
-                        sum += bands[k];
-                        count++;
-                    }
+                    for (int k = start; k <= end; k++) { sum += bands[k]; count++; }
                     float avg = count > 0 ? sum / count : 0f;
 
-                    float mapped = 10f + (avg / referenceMagnitude) * 190f;
-                    targetSpectrum[b] = Math.Clamp(mapped, 10f, 200f);
+                    if (avg <= bandThreshold[b]) { targetSpectrum[b] = minPx; continue; }
+
+                    float denom = Math.Max(1e-6f, dbMax - bandThreshold[b]);
+                    float norm = (avg - bandThreshold[b]) / denom;
+                    norm = Math.Clamp(norm, 0f, 1f);
+                    float shaped = (float)Math.Pow(norm, shapingExponent);
+                    float maxPx = Math.Max(minPx, panelHeight * bandMaxFactor[b] * bandScale[b]);
+                    float mapped = minPx + shaped * (maxPx - minPx);
+                    targetSpectrum[b] = Math.Clamp(mapped, minPx, panelHeight);
                 }
             }
 
-            // on first live update, copy target directly to avoid jump
             if (!firstLiveHandled)
             {
                 for (int i = 0; i < targetSpectrum.Length; i++) spectrumBars[i] = targetSpectrum[i];
@@ -467,24 +449,27 @@ namespace Reproductor_Proyecto_P1
             int bands = spectrumBars.Length;
             float width = panelVisualization.ClientSize.Width;
             float height = panelVisualization.ClientSize.Height;
-            float barW = Math.Max(2f, (width / bands) * 0.85f);
-            float gap = Math.Max(1f, (width / bands) * 0.15f);
+            float barW = Math.Max(6f, (width / bands) * 0.7f); 
+            float gap = Math.Max(4f, (width / bands) * 0.3f);
 
-            // Ensure smoothing arrays exist
             if (smoothedBars == null || smoothedBars.Length != bands) smoothedBars = new float[bands];
             if (peakHold == null || peakHold.Length != bands) { peakHold = new float[bands]; peakHoldTimer = new int[bands]; }
+
+            float lerpFactor = manualSpeedActive ? 0.6f : 0.28f;
+            for (int i = 0; i < bands; i++)
+            {
+                spectrumBars[i] = Lerp(spectrumBars[i], targetSpectrum[i], lerpFactor);
+            }
 
             for (int i = 0; i < bands; i++)
             {
                 float target = spectrumBars[i];
 
-                // per-bar attack/release smoothing
                 if (target > smoothedBars[i])
                     smoothedBars[i] = Lerp(smoothedBars[i], target, MeterAttack);
                 else
                     smoothedBars[i] = Lerp(smoothedBars[i], target, MeterRelease);
 
-                // peak hold handling
                 if (smoothedBars[i] > peakHold[i])
                 {
                     peakHold[i] = smoothedBars[i];
@@ -499,35 +484,31 @@ namespace Reproductor_Proyecto_P1
                     peakHold[i] = Lerp(peakHold[i], smoothedBars[i], 0.08f);
                 }
 
-                // apply beat emphasis stronger on lower indices (graves)
-                float beatBoost = 1f + beatIntensity * (i < Math.Max(1, bands / 8) ? 1.6f : 0.45f);
+                float beatBoost = 1f + beatIntensity * (i < Math.Max(1, bands / 4) ? 1.6f : 0.45f);
                 float value = smoothedBars[i] * beatBoost;
 
-                float norm = Math.Clamp(value / 200f, 0f, 1f);
-                float bH = Math.Max(2f, norm * height * maxBarHeightFactor);
+                float norm = Math.Clamp(value / Math.Max(1f, panelVisualization.ClientSize.Height), 0f, 1f);
+                float bH = Math.Max(4f, value); 
 
                 float x = i * (barW + gap);
                 float y = height - bH;
 
                 var rect = new RectangleF(x, y, barW, bH);
 
-                // base color selection by index
                 Color baseColor = themeColors[i % themeColors.Length];
                 using (var brush = new LinearGradientBrush(rect, Color.FromArgb(220, baseColor), Color.FromArgb(60, Color.Black), LinearGradientMode.Vertical))
-                using (var path = RoundedRect(rect, Math.Min(barW, 8f)))
+                using (var path = RoundedRect(rect, Math.Min(barW, 12f)))
                 {
                     g.FillPath(brush, path);
                     using (var pen = new Pen(Color.FromArgb(120, Color.Black), 1f)) g.DrawPath(pen, path);
                 }
 
-                // draw peak hold marker
-                float peakY = height - Math.Clamp(peakHold[i] / 200f * height, 0f, height);
+                float peakY = height - Math.Clamp(peakHold[i], 0f, panelVisualization.ClientSize.Height);
                 var peakRect = new RectangleF(x, Math.Max(0, peakY - 4), barW, 4);
                 using (var pb = new SolidBrush(Color.FromArgb(220, 255, 255, 255))) g.FillRectangle(pb, peakRect);
             }
         }
 
-        // keep RoundedRect helper (already present)
         private static GraphicsPath RoundedRect(RectangleF r, float radius)
         {
             var path = new GraphicsPath();
@@ -547,17 +528,14 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawWaves(Graphics g)
         {
-            // Ecuaciones harmónicas manuales usando seno y coseno
             for (int wave = 0; wave < themeColors.Length; wave++)
             {
                 using (Pen pen = new Pen(themeColors[wave], 2 + wave))
                 {
-                    // Parámetros de la onda
-                    float amplitude = 40 + wave * 15;  // Amplitud
-                    // boost amplitude with beat
+                    float amplitude = 40 + wave * 15; 
                     amplitude *= (1f + beatIntensity * 0.5f);
-                    float frequency = 0.01f + wave * 0.005f;  // Frecuencia
-                    float phase = animationFrame * (0.05f + wave * 0.02f);  // Fase
+                    float frequency = 0.01f + wave * 0.005f;  
+                    float phase = animationFrame * (0.05f + wave * 0.02f); 
                     float verticalOffset = panelVisualization.Height / 2 + wave * 20;
                     
                     // Dibujar onda punto por punto conectando líneas
@@ -585,7 +563,6 @@ namespace Reproductor_Proyecto_P1
 
         private void DrawParticles(Graphics g)
         {
-            // Ecuaciones paramétricas para partículas en movimiento
             for (int i = 0; i < particles.Length; i++)
             {
                 Color color = Color.FromArgb(200, themeColors[i % themeColors.Length]);
@@ -596,14 +573,12 @@ namespace Reproductor_Proyecto_P1
                 float centerX = particles[i].X;
                 float centerY = particles[i].Y;
 
-                // If spectrum exists, modulate size
                 if (spectrumBars != null && spectrumBars.Length > 0)
                 {
                     float idx = (i % spectrumBars.Length);
                     radius += spectrumBars[(int)idx] / 100f;
                 }
 
-                // increase radius on beat
                 radius *= 1f + beatIntensity * 0.8f;
 
                 using (Pen pen = new Pen(color, 2))
@@ -689,7 +664,6 @@ namespace Reproductor_Proyecto_P1
             {
                 Color neonColor = themeColors[i];
                 float intensity = 0.5f + 0.5f * (float)Math.Sin(animationFrame * 0.1f + i);
-                // boost neon glow with beat
                 intensity += beatIntensity * 0.8f;
                 intensity = Math.Min(1f, intensity);
                 Color glowColor = Color.FromArgb((int)(255 * intensity), neonColor);
@@ -740,17 +714,14 @@ namespace Reproductor_Proyecto_P1
 
         private void trackBarSpeed_ValueChanged(object sender, EventArgs e)
         {
-            // Cambiar la velocidad de la animación basado en el valor del trackbar
-            // Valor más alto = animación más rápida (menor intervalo)
-            int newInterval = Math.Max(10, 110 - trackBarSpeed.Value); // Asegurar mínimo de 10ms
+           
+            int newInterval = Math.Max(10, 110 - trackBarSpeed.Value); 
             timerAnimation.Interval = newInterval;
-            // marcar modo manual para que el espectro siga más rápido
             manualSpeedActive = true;
             manualSpeedTimer.Stop();
             manualSpeedTimer.Start();
             if (autoChangeThemes)
             {
-                // reinicia el tiempo para que el segundo siguiente sea exacto
                 themeStopwatch?.Restart();
             }
         }
@@ -761,13 +732,11 @@ namespace Reproductor_Proyecto_P1
         {
             if (!isFullscreen)
             {
-                // Guardar estado actual
                 previousWindowState = this.WindowState;
                 previousBorderStyle = this.FormBorderStyle;
                 previousSize = this.Size;
                 previousLocation = this.Location;
 
-                // Cambiar a pantalla completa
                 this.FormBorderStyle = FormBorderStyle.None;
                 this.WindowState = FormWindowState.Maximized;
                 panelControls.Visible = false;
@@ -776,7 +745,6 @@ namespace Reproductor_Proyecto_P1
             }
             else
             {
-                // Restaurar estado anterior
                 this.FormBorderStyle = previousBorderStyle;
                 this.WindowState = previousWindowState;
                 this.Size = previousSize;
@@ -810,7 +778,6 @@ namespace Reproductor_Proyecto_P1
                         trackBarSpeed.Value -= 5;
                     break;
                 case Keys.A:
-                    // Alternar cambio automático con la tecla 'A'
                     chkAutoChange.Checked = !chkAutoChange.Checked;
                     break;
             }
@@ -833,7 +800,6 @@ namespace Reproductor_Proyecto_P1
             }
         }
 
-        // simple lerp helper
         private static float Lerp(float a, float b, float t) => a + (b - a) * t;
     }
 }
