@@ -62,10 +62,16 @@ namespace Reproductor_Proyecto_P1
         private const float MeterAttack = 0.6f;   // rapidez de subida (0..1)
         private const float MeterRelease = 0.12f; // rapidez de bajada (0..1)
         private const int PeakHoldMs = 300;       // tiempo que mantiene pico
-        private float maxBarHeightFactor = 1.0f;  // escala máxima relativa (1.0 = full height)
+        // Reduce default max bar height so bars reach about half the panel by default
+        private float maxBarHeightFactor = 0.5f;  // escala máxima relativa (0.5 = mitad de la pantalla)
 
         // reference magnitude for mapping input magnitudes to display range
         private float referenceMagnitude = 60f; // adjust depending on analyzer output
+
+        // region representative indices (updated each spectrum update)
+        private int[] regionLowIdx = new int[0];
+        private int[] regionMidIdx = new int[0];
+        private int[] regionHighIdx = new int[0];
 
         public Form2()
         {
@@ -424,6 +430,89 @@ namespace Reproductor_Proyecto_P1
                 }
             }
 
+            // compute explicit low/mid/high summaries and assign to representative bars
+            if (inputBins >= 3)
+            {
+                // professional defaults
+                int lowBins = Math.Min(6, Math.Max(1, inputBins / 8));
+                int highBins = lowBins;
+                int midStart = Math.Max(lowBins, inputBins / 3);
+                int midEnd = Math.Max(midStart + 1, (2 * inputBins) / 3);
+
+                // averages
+                float sumLow = 0f, sumMid = 0f, sumHigh = 0f;
+                for (int k = 0; k < lowBins; k++) sumLow += bands[k];
+                int midCount = 0;
+                for (int k = midStart; k < midEnd; k++) { sumMid += bands[k]; midCount++; }
+                for (int k = inputBins - highBins; k < inputBins; k++) sumHigh += bands[k];
+
+                float avgLow = sumLow / Math.Max(1, lowBins);
+                float avgMid = midCount > 0 ? sumMid / midCount : avgLow;
+                float avgHigh = sumHigh / Math.Max(1, highBins);
+
+                float mappedLow = Math.Clamp(10f + (avgLow / referenceMagnitude) * 190f, 10f, 200f);
+                float mappedMid = Math.Clamp(10f + (avgMid / referenceMagnitude) * 190f, 10f, 200f);
+                float mappedHigh = Math.Clamp(10f + (avgHigh / referenceMagnitude) * 190f, 10f, 200f);
+
+                // choose representative output indices but remap regions so:
+                // center = high frequencies, sides = mid frequencies, extremes = low frequencies
+                int outBands = outputBands;
+
+                // determine counts
+                int highCount = Math.Min(8, Math.Max(1, outBands / 8)); // center high cluster
+                int midSideCount = Math.Min(6, Math.Max(1, outBands / 8)); // each side
+
+                int used = highCount + 2 * midSideCount;
+                int remaining = Math.Max(0, outBands - used);
+                int leftLow = remaining / 2;
+                int rightLow = remaining - leftLow;
+
+                var lowIdx = new List<int>();
+                // left extremes
+                for (int i = 0; i < leftLow; i++) lowIdx.Add(i);
+
+                // left mid-side
+                var midIdx = new List<int>();
+                int leftMidStart = leftLow;
+                for (int i = 0; i < midSideCount; i++) midIdx.Add(Math.Clamp(leftMidStart + i, 0, outBands - 1));
+
+                // center high
+                var highIdx = new List<int>();
+                int center = outBands / 2;
+                int halfHigh = highCount / 2;
+                int highStart = Math.Clamp(center - halfHigh, 0, outBands - 1 - Math.Max(0, highCount - 1));
+                for (int i = 0; i < highCount; i++) highIdx.Add(Math.Clamp(highStart + i, 0, outBands - 1));
+
+                // right mid-side
+                int rightMidStart = highStart + highCount;
+                for (int i = 0; i < midSideCount; i++) midIdx.Add(Math.Clamp(rightMidStart + i, 0, outBands - 1));
+
+                // right extremes
+                for (int i = 0; i < rightLow; i++) lowIdx.Add(Math.Clamp(outBands - 1 - i, 0, outBands - 1));
+
+                // ensure uniqueness and sorted for rendering
+                lowIdx = lowIdx.Distinct().OrderBy(x => x).ToList();
+                midIdx = midIdx.Distinct().OrderBy(x => x).ToList();
+                highIdx = highIdx.Distinct().OrderBy(x => x).ToList();
+
+                // store for DrawSpectrum styling
+                regionLowIdx = lowIdx.ToArray();
+                regionMidIdx = midIdx.ToArray();
+                regionHighIdx = highIdx.ToArray();
+
+                // blending to emphasize without overriding grouping
+                float blendLow = 0.85f; // emphasize lows across first bars
+                float blendMid = 0.9f;
+                float blendHigh = 0.9f;
+
+                foreach (var i in lowIdx)
+                    targetSpectrum[i] = Lerp(targetSpectrum[i], mappedLow, blendLow);
+                foreach (var i in midIdx)
+                    targetSpectrum[i] = Lerp(targetSpectrum[i], mappedMid, blendMid);
+                foreach (var i in highIdx)
+                    targetSpectrum[i] = Lerp(targetSpectrum[i], mappedHigh, blendHigh);
+            }
+
             // on first live update, copy target directly to avoid jump
             if (!firstLiveHandled)
             {
@@ -484,10 +573,31 @@ namespace Reproductor_Proyecto_P1
                 else
                     smoothedBars[i] = Lerp(smoothedBars[i], target, MeterRelease);
 
-                // peak hold handling
-                if (smoothedBars[i] > peakHold[i])
+                // apply beat emphasis stronger on lower indices (graves)
+                float beatBoost = 1f + beatIntensity * (i < Math.Max(1, bands / 8) ? 1.6f : 0.45f);
+                float value = smoothedBars[i] * beatBoost;
+
+                // determine region membership
+                bool isLow = Array.IndexOf(regionLowIdx, i) >= 0;
+                bool isMid = Array.IndexOf(regionMidIdx, i) >= 0;
+                bool isHigh = Array.IndexOf(regionHighIdx, i) >= 0;
+
+                // region pulse and extra multiplier so region bars respond more to beats/onsets
+                float regionPulse = 0f;
+                if (isLow) regionPulse = onsetLowPulse;
+                else if (isMid) regionPulse = onsetMidPulse;
+                else if (isHigh) regionPulse = onsetHighPulse;
+
+                float extraFromBeat = beatIntensity * (isLow ? 0.9f : isMid ? 0.6f : isHigh ? 0.35f : 0f);
+                float extraFromOnset = regionPulse * 1.6f; // makes onsets visually strong
+                float extraMultiplier = 1f + extraFromBeat + extraFromOnset;
+
+                float boostedValue = value * extraMultiplier;
+
+                // peak hold handling (track displayed value including beat & region boost)
+                if (boostedValue > peakHold[i])
                 {
-                    peakHold[i] = smoothedBars[i];
+                    peakHold[i] = boostedValue;
                     peakHoldTimer[i] = PeakHoldMs;
                 }
                 else if (peakHoldTimer[i] > 0)
@@ -496,35 +606,79 @@ namespace Reproductor_Proyecto_P1
                 }
                 else
                 {
-                    peakHold[i] = Lerp(peakHold[i], smoothedBars[i], 0.08f);
+                    peakHold[i] = Lerp(peakHold[i], boostedValue, 0.08f);
                 }
 
-                // apply beat emphasis stronger on lower indices (graves)
-                float beatBoost = 1f + beatIntensity * (i < Math.Max(1, bands / 8) ? 1.6f : 0.45f);
-                float value = smoothedBars[i] * beatBoost;
+                float norm = Math.Clamp(boostedValue / 200f, 0f, 1f);
+                // allow region bars to reach full height (override global maxBarHeightFactor)
+                float effectiveMaxFactor = (isLow || isMid || isHigh) ? 1.0f : maxBarHeightFactor;
+                float bH = Math.Max(2f, norm * height * effectiveMaxFactor);
 
-                float norm = Math.Clamp(value / 200f, 0f, 1f);
-                float bH = Math.Max(2f, norm * height * maxBarHeightFactor);
+                float regionHeightFactor = 1.0f;
+                Color regionTint = Color.Empty;
+                if (isLow) { regionHeightFactor = 1.15f; regionTint = Color.FromArgb(200, Color.LightCoral); }
+                else if (isMid) { regionHeightFactor = 1.05f; regionTint = Color.FromArgb(200, Color.LightBlue); }
+                else if (isHigh) { regionHeightFactor = 0.95f; regionTint = Color.FromArgb(200, Color.LightGreen); }
+
+                float drawnBH = Math.Max(2f, Math.Min(height, bH * regionHeightFactor));
 
                 float x = i * (barW + gap);
-                float y = height - bH;
+                float y = height - drawnBH;
 
-                var rect = new RectangleF(x, y, barW, bH);
+                var rect = new RectangleF(x, y, barW, drawnBH);
 
                 // base color selection by index
                 Color baseColor = themeColors[i % themeColors.Length];
-                using (var brush = new LinearGradientBrush(rect, Color.FromArgb(220, baseColor), Color.FromArgb(60, Color.Black), LinearGradientMode.Vertical))
+                Color fillStart = Color.FromArgb(220, baseColor);
+                Color fillEnd = Color.FromArgb(60, Color.Black);
+
+                // If region tint active, blend tint with base colors
+                if (regionTint != Color.Empty)
+                {
+                    // region pulse based on onset pulses and beatIntensity
+                    float regionPulseLocal = regionPulse;
+                    regionPulseLocal = Math.Clamp(regionPulseLocal + beatIntensity * 0.5f, 0f, 1f);
+
+                    // glow behind bar
+                    int glowAlpha = (int)(Math.Min(120, 60 + regionPulseLocal * 180));
+                    using (var glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, regionTint)))
+                    {
+                        var glowRect = RectangleF.Inflate(rect, 2f, 4f);
+                        g.FillRectangle(glowBrush, glowRect);
+                    }
+
+                    // blend tint into fill colors, stronger when pulse is high
+                    fillStart = InterpolateColor(fillStart, regionTint, 0.3f + 0.7f * regionPulseLocal);
+                    fillEnd = InterpolateColor(fillEnd, Color.Black, 0.2f);
+                }
+
+                using (var brush = new LinearGradientBrush(rect, fillStart, fillEnd, LinearGradientMode.Vertical))
                 using (var path = RoundedRect(rect, Math.Min(barW, 8f)))
                 {
                     g.FillPath(brush, path);
-                    using (var pen = new Pen(Color.FromArgb(120, Color.Black), 1f)) g.DrawPath(pen, path);
+                    // Draw a subtle highlight stroke for region bars
+                    if (regionTint != Color.Empty)
+                    {
+                        using (var pen = new Pen(Color.FromArgb(180, Color.White), 1.2f))
+                        {
+                            g.DrawPath(pen, path);
+                        }
+                    }
+                    else
+                    {
+                        using (var pen = new Pen(Color.FromArgb(120, Color.Black), 1f)) g.DrawPath(pen, path);
+                    }
                 }
 
-                // draw peak hold marker
-                float peakY = height - Math.Clamp(peakHold[i] / 200f * height, 0f, height);
-                var peakRect = new RectangleF(x, Math.Max(0, peakY - 4), barW, 4);
+                // draw peak hold marker aligned to displayed bar (do not exceed bar height)
+                float peakHeight = Math.Clamp(peakHold[i] / 200f * height, 0f, height);
+                if (peakHeight > drawnBH) peakHeight = drawnBH;
+                float peakY = height - peakHeight;
+                var peakRect = new RectangleF(x, Math.Max(0, peakY - 3), barW, 3);
                 using (var pb = new SolidBrush(Color.FromArgb(220, 255, 255, 255))) g.FillRectangle(pb, peakRect);
             }
+
+            // removed previous overlay drawing; bars themselves are tinted and resized for regions
         }
 
         // keep RoundedRect helper (already present)
@@ -549,36 +703,34 @@ namespace Reproductor_Proyecto_P1
         {
             // Ecuaciones harmónicas manuales usando seno y coseno
             for (int wave = 0; wave < themeColors.Length; wave++)
+            using (Pen pen = new Pen(themeColors[wave], 2 + wave))
             {
-                using (Pen pen = new Pen(themeColors[wave], 2 + wave))
+                // Parámetros de la onda
+                float amplitude = 40 + wave * 15;  // Amplitud
+                // boost amplitude with beat
+                amplitude *= (1f + beatIntensity * 0.5f);
+                float frequency = 0.01f + wave * 0.005f;  // Frecuencia
+                float phase = animationFrame * (0.05f + wave * 0.02f);  // Fase
+                float verticalOffset = panelVisualization.Height / 2 + wave * 20;
+                
+                // Dibujar onda punto por punto conectando líneas
+                for (int x = 0; x < panelVisualization.Width - 1; x++)
                 {
-                    // Parámetros de la onda
-                    float amplitude = 40 + wave * 15;  // Amplitud
-                    // boost amplitude with beat
-                    amplitude *= (1f + beatIntensity * 0.5f);
-                    float frequency = 0.01f + wave * 0.005f;  // Frecuencia
-                    float phase = animationFrame * (0.05f + wave * 0.02f);  // Fase
-                    float verticalOffset = panelVisualization.Height / 2 + wave * 20;
+                    float y1 = verticalOffset + amplitude * (float)Math.Sin(frequency * x + phase);
+                    float y2 = verticalOffset + amplitude * (float)Math.Sin(frequency * (x + 1) + phase);
                     
-                    // Dibujar onda punto por punto conectando líneas
-                    for (int x = 0; x < panelVisualization.Width - 1; x++)
+                    // componente adicional
+                    y1 += (amplitude * 0.3f) * (float)Math.Cos(frequency * x * 2 + phase * 1.5f);
+                    y2 += (amplitude * 0.3f) * (float)Math.Cos(frequency * (x + 1) * 2 + phase * 1.5f);
+                    
+                    if (spectrumBars != null && spectrumBars.Length > 4)
                     {
-                        float y1 = verticalOffset + amplitude * (float)Math.Sin(frequency * x + phase);
-                        float y2 = verticalOffset + amplitude * (float)Math.Sin(frequency * (x + 1) + phase);
-                        
-                        // componente adicional
-                        y1 += (amplitude * 0.3f) * (float)Math.Cos(frequency * x * 2 + phase * 1.5f);
-                        y2 += (amplitude * 0.3f) * (float)Math.Cos(frequency * (x + 1) * 2 + phase * 1.5f);
-                        
-                        if (spectrumBars != null && spectrumBars.Length > 4)
-                        {
-                            float low = (spectrumBars[0] + spectrumBars[1] + spectrumBars[2]) / 3f;
-                            y1 += (low / 50f) * 20f;
-                            y2 += (low / 50f) * 20f;
-                        }
-                        
-                        g.DrawLine(pen, x, y1, x + 1, y2);
+                        float low = (spectrumBars[0] + spectrumBars[1] + spectrumBars[2]) / 3f;
+                        y1 += (low / 50f) * 20f;
+                        y2 += (low / 50f) * 20f;
                     }
+                    
+                    g.DrawLine(pen, x, y1, x + 1, y2);
                 }
             }
         }
@@ -642,44 +794,40 @@ namespace Reproductor_Proyecto_P1
             PointF center = new PointF(panelVisualization.Width / 2, panelVisualization.Height / 2);
             
             for (int spiral = 0; spiral < themeColors.Length; spiral++)
+            using (Pen pen = new Pen(themeColors[spiral], 2))
             {
-                using (Pen pen = new Pen(themeColors[spiral], 2))
+                float a = 2 + spiral;  
+                float b = 0.5f + spiral * 0.2f;  
+                float rotationSpeed = animationFrame * (0.02f + spiral * 0.01f);
+                
+                for (float theta = 0; theta < 6 * Math.PI; theta += 0.1f)
                 {
-                    float a = 2 + spiral;  
-                    float b = 0.5f + spiral * 0.2f;  
-                    float rotationSpeed = animationFrame * (0.02f + spiral * 0.01f);
+                    float r1 = a + b * theta;
+                    float r2 = a + b * (theta + 0.1f);
                     
-                    for (float theta = 0; theta < 6 * Math.PI; theta += 0.1f)
+                    float x1 = center.X + r1 * (float)Math.Cos(theta + rotationSpeed);
+                    float y1 = center.Y + r1 * (float)Math.Sin(theta + rotationSpeed);
+                    float x2 = center.X + r2 * (float)Math.Cos(theta + 0.1f + rotationSpeed);
+                    float y2 = center.Y + r2 * (float)Math.Sin(theta + 0.1f + rotationSpeed);
+                    
+                    if (x1 >= 0 && x1 < panelVisualization.Width && y1 >= 0 && y1 < panelVisualization.Height &&
+                        x2 >= 0 && x2 < panelVisualization.Width && y2 >= 0 && y2 < panelVisualization.Height)
                     {
-                        float r1 = a + b * theta;
-                        float r2 = a + b * (theta + 0.1f);
-                        
-                        float x1 = center.X + r1 * (float)Math.Cos(theta + rotationSpeed);
-                        float y1 = center.Y + r1 * (float)Math.Sin(theta + rotationSpeed);
-                        float x2 = center.X + r2 * (float)Math.Cos(theta + 0.1f + rotationSpeed);
-                        float y2 = center.Y + r2 * (float)Math.Sin(theta + 0.1f + rotationSpeed);
-                        
-                        if (x1 >= 0 && x1 < panelVisualization.Width && y1 >= 0 && y1 < panelVisualization.Height &&
-                            x2 >= 0 && x2 < panelVisualization.Width && y2 >= 0 && y2 < panelVisualization.Height)
-                        {
-                            g.DrawLine(pen, x1, y1, x2, y2);
-                        }
+                        g.DrawLine(pen, x1, y1, x2, y2);
                     }
                 }
             }
             
             for (int i = 0; i < 12; i++)
+            using (Pen pen = new Pen(themeColors[i % themeColors.Length], 1))
             {
-                using (Pen pen = new Pen(themeColors[i % themeColors.Length], 1))
-                {
-                    float angle = (2 * (float)Math.PI * i) / 12 + animationFrame * 0.03f;
-                    float x1 = center.X + 50 * (float)Math.Cos(angle);
-                    float y1 = center.Y + 50 * (float)Math.Sin(angle);
-                    float x2 = center.X + 150 * (float)Math.Cos(angle);
-                    float y2 = center.Y + 150 * (float)Math.Sin(angle);
-                    
-                    g.DrawLine(pen, x1, y1, x2, y2);
-                }
+                float angle = (2 * (float)Math.PI * i) / 12 + animationFrame * 0.03f;
+                float x1 = center.X + 50 * (float)Math.Cos(angle);
+                float y1 = center.Y + 50 * (float)Math.Sin(angle);
+                float x2 = center.X + 150 * (float)Math.Cos(angle);
+                float y2 = center.Y + 150 * (float)Math.Sin(angle);
+                
+                g.DrawLine(pen, x1, y1, x2, y2);
             }
         }
 
@@ -835,6 +983,17 @@ namespace Reproductor_Proyecto_P1
 
         // simple lerp helper
         private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+        // helper to interpolate between two colors
+        private static Color InterpolateColor(Color a, Color b, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            return Color.FromArgb(
+                (int)(a.A + (b.A - a.A) * t),
+                (int)(a.R + (b.R - a.R) * t),
+                (int)(a.G + (b.G - a.G) * t),
+                (int)(a.B + (b.B - a.B) * t)
+            );
+        }
     }
 }
-
